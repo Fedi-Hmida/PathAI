@@ -1,0 +1,2 @@
+"""PathAI backend application package."""
+
