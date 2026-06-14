@@ -1,3 +1,5 @@
+from typing import Protocol
+
 from app.quiz.errors import QuizNotFoundError
 from app.quiz.generator import generate_deterministic_quiz
 from app.quiz.llm import generate_quiz_with_optional_mock_llm
@@ -10,49 +12,84 @@ from app.quiz.schemas import (
     QuizSubmissionRequest,
 )
 from app.quiz.scoring import score_quiz_submission
+from app.repositories import FakeQuizRepository, QuizRepository
 
 
-class InMemoryQuizStore:
-    def __init__(self) -> None:
-        self._quizzes: dict[str, Quiz] = {}
-        self._attempts: dict[str, list[QuizResult]] = {}
-
+class QuizStore(Protocol):
     def save_quiz(self, quiz: Quiz) -> None:
-        self._quizzes[quiz.quiz_id] = quiz.model_copy(deep=True)
+        ...
 
     def load_quiz(self, quiz_id: str) -> Quiz | None:
-        quiz = self._quizzes.get(quiz_id)
-        if quiz is None:
-            return None
-        return quiz.model_copy(deep=True)
+        ...
 
     def save_result(self, result: QuizResult) -> None:
-        self._attempts.setdefault(result.curriculum_id, []).append(
-            result.model_copy(deep=True)
-        )
+        ...
+
+    def attempts_for_curriculum(self, curriculum_id: str) -> list[QuizResult]:
+        ...
+
+    def attempts_for_quiz(self, quiz_id: str) -> list[QuizResult]:
+        ...
+
+    def clear(self) -> None:
+        ...
+
+
+class RepositoryBackedQuizStore:
+    def __init__(self, repository: QuizRepository | None = None) -> None:
+        self.repository = repository or FakeQuizRepository()
+
+    def save_quiz(self, quiz: Quiz) -> None:
+        self.repository.save_quiz(quiz.model_dump(mode="json"))
+
+    def load_quiz(self, quiz_id: str) -> Quiz | None:
+        payload = self.repository.get_quiz(quiz_id)
+        if payload is None:
+            return None
+        return Quiz.model_validate(payload)
+
+    def save_result(self, result: QuizResult) -> None:
+        self.repository.save_attempt(result.model_dump(mode="json"))
 
     def attempts_for_curriculum(self, curriculum_id: str) -> list[QuizResult]:
         return [
-            attempt.model_copy(deep=True)
-            for attempt in self._attempts.get(curriculum_id, [])
+            QuizResult.model_validate(payload)
+            for payload in self.repository.get_history(curriculum_id)
         ]
 
     def attempts_for_quiz(self, quiz_id: str) -> list[QuizResult]:
+        quiz_payload = self.repository.get_quiz(quiz_id)
+        if quiz_payload is None:
+            return []
+        curriculum_id = quiz_payload.get("curriculum_id")
+        if not isinstance(curriculum_id, str):
+            return []
         return [
-            attempt.model_copy(deep=True)
-            for attempts in self._attempts.values()
-            for attempt in attempts
-            if attempt.quiz_id == quiz_id
+            QuizResult.model_validate(payload)
+            for payload in self.repository.get_history(curriculum_id)
+            if payload.get("quiz_id") == quiz_id
         ]
 
     def clear(self) -> None:
-        self._quizzes.clear()
-        self._attempts.clear()
+        clear = getattr(self.repository, "clear", None)
+        if callable(clear):
+            clear()
+
+
+class InMemoryQuizStore(RepositoryBackedQuizStore):
+    """Backward-compatible fake repository store for tests and local demo routes."""
+
+    def __init__(self) -> None:
+        super().__init__(FakeQuizRepository())
 
 
 class QuizService:
-    def __init__(self, store: InMemoryQuizStore | None = None) -> None:
-        self.store = store or InMemoryQuizStore()
+    def __init__(
+        self,
+        store: QuizStore | None = None,
+        repository: QuizRepository | None = None,
+    ) -> None:
+        self.store = store or RepositoryBackedQuizStore(repository)
 
     async def generate_quiz(
         self,

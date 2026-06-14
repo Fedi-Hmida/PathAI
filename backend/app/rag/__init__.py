@@ -20,7 +20,12 @@ from app.rag.schemas import (
     ResourceSeed,
     seed_to_resource_document_payload,
 )
-from app.rag.service import ResourceCatalog, ResourceService
+from app.rag.service import (
+    InMemoryResourceStore,
+    RepositoryBackedResourceStore,
+    ResourceCatalog,
+    ResourceService,
+)
 
 __all__ = [
     "CurriculumResourceAttachmentRequest",
@@ -29,6 +34,8 @@ __all__ = [
     "ResourceCatalogItem",
     "ResourceCatalogSummary",
     "ResourceDocumentPayload",
+    "InMemoryResourceStore",
+    "RepositoryBackedResourceStore",
     "ResourceRetrievalRequest",
     "ResourceRetrievalResult",
     "ResourceSeed",

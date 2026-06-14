@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.v1.runtime_services import build_runtime_services
 from app.core.errors import PathAIError
 from app.evaluation.errors import EvaluationError
 from app.evaluation.schemas import (
@@ -13,7 +14,7 @@ from app.evaluation.schemas import (
 from app.evaluation.service import EvaluationService
 
 router = APIRouter(prefix="/evaluation", tags=["evaluation"])
-evaluation_service = EvaluationService()
+evaluation_service: EvaluationService = build_runtime_services().evaluation
 
 
 @router.get(

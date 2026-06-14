@@ -2,6 +2,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Body
 
+from app.api.v1.runtime_services import build_runtime_services
 from app.core.errors import PathAIError
 from app.rag.errors import ResourceError
 from app.rag.schemas import (
@@ -15,7 +16,7 @@ from app.rag.schemas import (
 from app.rag.service import ResourceService
 
 router = APIRouter(prefix="/resources", tags=["resources"])
-resource_service = ResourceService()
+resource_service: ResourceService = build_runtime_services().resources
 
 
 @router.get(

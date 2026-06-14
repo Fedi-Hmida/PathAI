@@ -22,9 +22,6 @@ class ProgressStore(Protocol):
     def save(self, summary: CurriculumProgressSummary) -> None:
         ...
 
-    def save(self, summary: CurriculumProgressSummary) -> None:
-        ...
-
     def load(self, curriculum_id: str) -> CurriculumProgressSummary | None:
         ...
 

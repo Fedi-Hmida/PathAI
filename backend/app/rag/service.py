@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Protocol
 
 from app.curriculum.schemas import CurriculumPlan, CurriculumTopic
 from app.rag.constants import (
@@ -29,6 +29,7 @@ from app.rag.schemas import (
     ResourceSeedValidationResponse,
     TopicResourceAttachment,
 )
+from app.repositories import FakeResourceRepository, ResourceRepository
 
 
 class ResourceCatalog:
@@ -54,9 +55,76 @@ class ResourceCatalog:
         )
 
 
+class ResourceStore(Protocol):
+    def save_catalog(self, items: list[ResourceCatalogItem]) -> None:
+        ...
+
+    def load_catalog(self) -> list[ResourceCatalogItem]:
+        ...
+
+    def save_attachment(self, attachment: CurriculumResourceAttachmentResponse) -> None:
+        ...
+
+    def load_attachment(
+        self,
+        curriculum_id: str,
+    ) -> CurriculumResourceAttachmentResponse | None:
+        ...
+
+    def clear(self) -> None:
+        ...
+
+
+class RepositoryBackedResourceStore:
+    def __init__(self, repository: ResourceRepository | None = None) -> None:
+        self.repository = repository or FakeResourceRepository()
+
+    def save_catalog(self, items: list[ResourceCatalogItem]) -> None:
+        for item in items:
+            self.repository.upsert_resource(item.model_dump(mode="json"))
+
+    def load_catalog(self) -> list[ResourceCatalogItem]:
+        return [
+            ResourceCatalogItem.model_validate(payload)
+            for payload in self.repository.list_catalog()
+        ]
+
+    def save_attachment(self, attachment: CurriculumResourceAttachmentResponse) -> None:
+        self.repository.save_attachment(attachment.model_dump(mode="json"))
+
+    def load_attachment(
+        self,
+        curriculum_id: str,
+    ) -> CurriculumResourceAttachmentResponse | None:
+        payload = self.repository.get_attachment_for_curriculum(curriculum_id)
+        if payload is None:
+            return None
+        return CurriculumResourceAttachmentResponse.model_validate(payload)
+
+    def clear(self) -> None:
+        clear = getattr(self.repository, "clear", None)
+        if callable(clear):
+            clear()
+
+
+class InMemoryResourceStore(RepositoryBackedResourceStore):
+    """Backward-compatible fake repository store for tests and local demo routes."""
+
+    def __init__(self) -> None:
+        super().__init__(FakeResourceRepository())
+
+
 class ResourceService:
-    def __init__(self, catalog: ResourceCatalog | None = None) -> None:
+    def __init__(
+        self,
+        catalog: ResourceCatalog | None = None,
+        store: ResourceStore | None = None,
+        repository: ResourceRepository | None = None,
+    ) -> None:
         self._catalog = catalog
+        self.store = store or RepositoryBackedResourceStore(repository)
+        if catalog is not None:
+            self.store.save_catalog(catalog.items)
 
     def load_catalog_from_canonical_paths(
         self,
@@ -77,9 +145,13 @@ class ResourceService:
             ) from exc
         catalog = ResourceCatalog(build_catalog_items_from_seeds(seeds))
         self._catalog = catalog
+        self.store.save_catalog(catalog.items)
         return catalog
 
     def get_catalog(self) -> ResourceCatalog:
+        if self._catalog is None:
+            items = self.store.load_catalog()
+            self._catalog = ResourceCatalog(items) if items else None
         if self._catalog is None:
             self.load_catalog_from_canonical_paths()
         if self._catalog is None:
@@ -158,13 +230,21 @@ class ResourceService:
                 )
 
         enriched = attach_resources_to_curriculum_payload(request.curriculum, attachments)
-        return CurriculumResourceAttachmentResponse(
+        attachment_response = CurriculumResourceAttachmentResponse(
             curriculum_id=request.curriculum.curriculum_id,
             enriched_curriculum=enriched,
             topic_results=topic_results,
             attachments=attachments,
             warnings=warnings,
         )
+        self.store.save_attachment(attachment_response)
+        return attachment_response
+
+    def get_attachment_for_curriculum(
+        self,
+        curriculum_id: str,
+    ) -> CurriculumResourceAttachmentResponse | None:
+        return self.store.load_attachment(curriculum_id)
 
 
 def candidate_to_reference(candidate: ResourceCandidate) -> ResourceReferencePayload:

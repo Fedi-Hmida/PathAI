@@ -1,5 +1,12 @@
 """Repository contracts and deterministic fake repositories."""
 
+from app.repositories.factory import (
+    REPOSITORY_BACKEND_ENV,
+    RepositoryBackend,
+    RepositoryBundle,
+    build_repository_bundle,
+    configured_repository_backend,
+)
 from app.repositories.fakes import (
     FakeAdapterRepository,
     FakeAssessmentRepository,
@@ -10,6 +17,16 @@ from app.repositories.fakes import (
     FakeProgressRepository,
     FakeQuizRepository,
     FakeResourceRepository,
+)
+from app.repositories.mongo import (
+    MongoAdapterRepository,
+    MongoAssessmentRepository,
+    MongoCriticRepository,
+    MongoCurriculumRepository,
+    MongoEvaluationRepository,
+    MongoProgressRepository,
+    MongoQuizRepository,
+    MongoResourceRepository,
 )
 from app.repositories.protocols import (
     AdapterRepository,
@@ -23,6 +40,7 @@ from app.repositories.protocols import (
     RepositoryPayload,
     ResourceRepository,
 )
+from app.repositories.runtime import get_repository_bundle, reset_repository_bundle_for_tests
 
 __all__ = [
     "AdapterRepository",
@@ -39,9 +57,24 @@ __all__ = [
     "FakeProgressRepository",
     "FakeQuizRepository",
     "FakeResourceRepository",
+    "MongoAdapterRepository",
+    "MongoAssessmentRepository",
+    "MongoCriticRepository",
+    "MongoCurriculumRepository",
+    "MongoEvaluationRepository",
+    "MongoProgressRepository",
+    "MongoQuizRepository",
+    "MongoResourceRepository",
     "OrchestrationRepository",
     "ProgressRepository",
     "QuizRepository",
+    "REPOSITORY_BACKEND_ENV",
+    "RepositoryBackend",
+    "RepositoryBundle",
     "RepositoryPayload",
     "ResourceRepository",
+    "build_repository_bundle",
+    "configured_repository_backend",
+    "get_repository_bundle",
+    "reset_repository_bundle_for_tests",
 ]

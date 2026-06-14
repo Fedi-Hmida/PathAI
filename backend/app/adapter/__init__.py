@@ -5,7 +5,11 @@ from app.adapter.schemas import (
     AdaptationReplanRequest,
     AdaptationResult,
 )
-from app.adapter.service import AdapterService, InMemoryAdaptationStore
+from app.adapter.service import (
+    AdapterService,
+    InMemoryAdaptationStore,
+    RepositoryBackedAdaptationStore,
+)
 
 __all__ = [
     "AdaptationCheckRequest",
@@ -15,4 +19,5 @@ __all__ = [
     "AdaptationResult",
     "AdapterService",
     "InMemoryAdaptationStore",
+    "RepositoryBackedAdaptationStore",
 ]

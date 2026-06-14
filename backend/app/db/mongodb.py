@@ -1,7 +1,8 @@
 from typing import Any
 
 import certifi
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo import AsyncMongoClient
+from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import PyMongoError
 
 from app.core.config import Settings, get_settings
@@ -14,14 +15,14 @@ logger = get_logger(__name__)
 
 class MongoDBManager:
     def __init__(self) -> None:
-        self.client: AsyncIOMotorClient[Any] | None = None
-        self.database: AsyncIOMotorDatabase[Any] | None = None
+        self.client: AsyncMongoClient[Any] | None = None
+        self.database: AsyncDatabase[Any] | None = None
         self.initialized: bool = False
         self.last_error: str | None = None
 
     async def connect(self, settings: Settings | None = None) -> None:
         active_settings = settings or get_settings()
-        self.client = AsyncIOMotorClient(
+        self.client = AsyncMongoClient(
             active_settings.mongodb_uri,
             **_mongodb_client_options(active_settings),
         )
@@ -32,7 +33,7 @@ class MongoDBManager:
 
         from beanie import init_beanie
 
-        await init_beanie(database=self.database, document_models=DOCUMENT_MODELS)  # type: ignore[arg-type]
+        await init_beanie(database=self.database, document_models=DOCUMENT_MODELS)
         self.initialized = True
         self.last_error = None
         logger.info("MongoDB connected database=%s", active_settings.mongodb_db_name)
@@ -54,7 +55,7 @@ class MongoDBManager:
                 from beanie import init_beanie
 
                 await init_beanie(
-                    database=self.database,  # type: ignore[arg-type]
+                    database=self.database,
                     document_models=DOCUMENT_MODELS,
                 )
             except Exception as exc:
@@ -82,7 +83,7 @@ class MongoDBManager:
 
     async def close(self) -> None:
         if self.client is not None:
-            self.client.close()
+            await self.client.close()
             logger.info("MongoDB client closed")
         self.client = None
         self.database = None
@@ -92,7 +93,7 @@ class MongoDBManager:
 database_manager = MongoDBManager()
 
 
-def get_database() -> AsyncIOMotorDatabase[Any]:
+def get_database() -> AsyncDatabase[Any]:
     if database_manager.database is None:
         raise RuntimeError("MongoDB database is not initialized")
     return database_manager.database

@@ -8,6 +8,7 @@ from app.agents.demo_orchestration import (
     ServiceBackedDemoResult,
 )
 from app.agents.service import PathAIGraphService, run_demo_graph_from_payload
+from app.api.v1.runtime_services import build_runtime_services
 from app.assessment.schemas import KnowledgeMap
 from app.core.config import get_settings
 from app.core.errors import PathAIError
@@ -57,14 +58,24 @@ from app.schemas.learning import LearningGoalCreate
 
 router = APIRouter(prefix="/dev", tags=["development"])
 graph_service = PathAIGraphService()
-curriculum_dev_service = CurriculumService()
-resource_dev_service = ResourceService()
-critic_dev_service = CriticService()
-progress_dev_service = ProgressService()
-quiz_dev_service = QuizService()
-adapter_dev_service = AdapterService()
-evaluation_dev_service = EvaluationService()
-service_backed_demo_orchestrator = ServiceBackedDemoOrchestrator()
+dev_services = build_runtime_services()
+curriculum_dev_service: CurriculumService = dev_services.curriculum
+resource_dev_service: ResourceService = dev_services.resources
+critic_dev_service: CriticService = dev_services.critic
+progress_dev_service: ProgressService = dev_services.progress
+quiz_dev_service: QuizService = dev_services.quiz
+adapter_dev_service: AdapterService = dev_services.adapter
+evaluation_dev_service: EvaluationService = dev_services.evaluation
+service_backed_demo_orchestrator = ServiceBackedDemoOrchestrator(
+    assessment_service=dev_services.assessment,
+    curriculum_service=curriculum_dev_service,
+    resource_service=resource_dev_service,
+    critic_service=critic_dev_service,
+    progress_service=progress_dev_service,
+    quiz_service=quiz_dev_service,
+    adapter_service=adapter_dev_service,
+    evaluation_service=evaluation_dev_service,
+)
 
 
 @router.get(

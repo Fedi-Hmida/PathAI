@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.v1.runtime_services import build_runtime_services
 from app.core.errors import PathAIError
 from app.critic.errors import CriticError
 from app.critic.schemas import (
@@ -11,7 +12,7 @@ from app.critic.schemas import (
 from app.critic.service import CriticService
 
 router = APIRouter(prefix="/critic", tags=["critic"])
-critic_service = CriticService()
+critic_service: CriticService = build_runtime_services().critic
 
 
 @router.post(

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from beanie import Document
 from pydantic import ConfigDict, Field
@@ -27,6 +28,7 @@ class AssessmentSessionDocument(Document):
     answers: list[AnswerEvaluation] = Field(default_factory=list)
     knowledge_map: KnowledgeMap | None = None
     assessment_notes: list[str] = Field(default_factory=list)
+    result: dict[str, Any] | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 

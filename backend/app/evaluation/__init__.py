@@ -1,3 +1,11 @@
-from app.evaluation.service import EvaluationService
+from app.evaluation.service import (
+    EvaluationService,
+    InMemoryEvaluationStore,
+    RepositoryBackedEvaluationStore,
+)
 
-__all__ = ["EvaluationService"]
+__all__ = [
+    "EvaluationService",
+    "InMemoryEvaluationStore",
+    "RepositoryBackedEvaluationStore",
+]

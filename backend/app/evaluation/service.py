@@ -1,3 +1,5 @@
+from typing import Protocol
+
 from app.evaluation.ablations import get_ablation_definitions
 from app.evaluation.baselines import get_baseline_definitions
 from app.evaluation.constants import DEFAULT_EVALUATION_DATASET, EvaluationSystemVariant
@@ -30,9 +32,63 @@ from app.evaluation.schemas import (
     ResourceRetrievalEvaluationResult,
     ReviewRubric,
 )
+from app.repositories import EvaluationRepository, FakeEvaluationRepository
+
+
+class EvaluationStore(Protocol):
+    def save(self, report: EvaluationReport) -> None:
+        ...
+
+    def list_reports(self, dataset_name: str | None = None) -> list[EvaluationReport]:
+        ...
+
+    def get(self, evaluation_id: str) -> EvaluationReport | None:
+        ...
+
+    def clear(self) -> None:
+        ...
+
+
+class RepositoryBackedEvaluationStore:
+    def __init__(self, repository: EvaluationRepository | None = None) -> None:
+        self.repository = repository or FakeEvaluationRepository()
+
+    def save(self, report: EvaluationReport) -> None:
+        self.repository.save_report(report.model_dump(mode="json"))
+
+    def list_reports(self, dataset_name: str | None = None) -> list[EvaluationReport]:
+        return [
+            EvaluationReport.model_validate(payload)
+            for payload in self.repository.list_reports(dataset_name)
+        ]
+
+    def get(self, evaluation_id: str) -> EvaluationReport | None:
+        payload = self.repository.get_report(evaluation_id)
+        if payload is None:
+            return None
+        return EvaluationReport.model_validate(payload)
+
+    def clear(self) -> None:
+        clear = getattr(self.repository, "clear", None)
+        if callable(clear):
+            clear()
+
+
+class InMemoryEvaluationStore(RepositoryBackedEvaluationStore):
+    """Backward-compatible fake repository store for tests and local demo routes."""
+
+    def __init__(self) -> None:
+        super().__init__(FakeEvaluationRepository())
 
 
 class EvaluationService:
+    def __init__(
+        self,
+        store: EvaluationStore | None = None,
+        repository: EvaluationRepository | None = None,
+    ) -> None:
+        self.store = store or RepositoryBackedEvaluationStore(repository)
+
     def list_datasets(self) -> list[EvaluationDatasetSummary]:
         return list_dataset_summaries()
 
@@ -88,13 +144,15 @@ class EvaluationService:
             ],
         )
         strengths, weaknesses, recommendations = summarize_report_metrics(report)
-        return report.model_copy(
+        final_report = report.model_copy(
             update={
                 "strengths": strengths,
                 "weaknesses": weaknesses,
                 "recommendations": recommendations,
             }
         )
+        self.store.save(final_report)
+        return final_report
 
     def evaluate_assessment_output(self, fixture_id: str) -> AssessmentEvaluationResult:
         fixture = _fixture_by_id(fixture_id)
@@ -194,6 +252,12 @@ class EvaluationService:
 
     def generate_markdown_report(self, report: EvaluationReport) -> str:
         return report_to_markdown(report)
+
+    def list_reports(self, dataset_name: str | None = None) -> list[EvaluationReport]:
+        return self.store.list_reports(dataset_name)
+
+    def get_report(self, evaluation_id: str) -> EvaluationReport | None:
+        return self.store.get(evaluation_id)
 
 
 def _fixture_by_id(fixture_id: str) -> LearnerGoalFixture:

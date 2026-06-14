@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.v1.runtime_services import build_runtime_services
 from app.core.errors import PathAIError
 from app.quiz.errors import QuizError
 from app.quiz.schemas import (
@@ -13,7 +14,7 @@ from app.quiz.schemas import (
 from app.quiz.service import QuizService
 
 router = APIRouter(prefix="/quiz", tags=["quiz"])
-quiz_service = QuizService()
+quiz_service: QuizService = build_runtime_services().quiz
 
 
 @router.post(

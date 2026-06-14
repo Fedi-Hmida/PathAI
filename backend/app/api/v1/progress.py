@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.v1.runtime_services import build_runtime_services
 from app.core.errors import PathAIError
 from app.progress.errors import ProgressError
 from app.progress.schemas import (
@@ -13,7 +14,7 @@ from app.progress.schemas import (
 from app.progress.service import ProgressService
 
 router = APIRouter(prefix="/progress", tags=["progress"])
-progress_service = ProgressService()
+progress_service: ProgressService = build_runtime_services().progress
 
 
 @router.post(

@@ -8,7 +8,7 @@ from app.quiz.schemas import (
     QuizResult,
     QuizSubmissionRequest,
 )
-from app.quiz.service import InMemoryQuizStore, QuizService
+from app.quiz.service import InMemoryQuizStore, QuizService, RepositoryBackedQuizStore
 
 __all__ = [
     "InMemoryQuizStore",
@@ -21,4 +21,5 @@ __all__ = [
     "QuizResult",
     "QuizService",
     "QuizSubmissionRequest",
+    "RepositoryBackedQuizStore",
 ]

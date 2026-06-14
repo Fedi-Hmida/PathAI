@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.v1.runtime_services import build_runtime_services
 from app.assessment.errors import AssessmentError
 from app.assessment.schemas import (
     AnswerSubmissionRequest,
@@ -13,7 +14,7 @@ from app.assessment.service import AssessmentService
 from app.core.errors import PathAIError
 
 router = APIRouter(prefix="/assessment", tags=["assessment"])
-assessment_service = AssessmentService()
+assessment_service: AssessmentService = build_runtime_services().assessment
 
 
 @router.post(

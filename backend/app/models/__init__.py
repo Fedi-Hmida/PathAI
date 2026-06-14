@@ -6,6 +6,15 @@ from app.assessment.models import AssessmentSessionDocument
 from app.curriculum.models import CurriculumDocument
 from app.models.adaptation_log import AdaptationLogDocument
 from app.models.generation_job import GenerationJobDocument
+from app.models.persistence import (
+    AdaptationResultDocument,
+    CriticReviewDocument,
+    EvaluationReportDocument,
+    ProgressSummaryDocument,
+    QuizAttemptDocument,
+    QuizSnapshotDocument,
+    ResourceAttachmentDocument,
+)
 from app.models.progress_log import ProgressLogDocument
 from app.models.quiz import QuizDocument
 from app.models.resource import ResourceDocument
@@ -20,6 +29,13 @@ DOCUMENT_MODELS: list[type[Document]] = [
     ProgressLogDocument,
     AdaptationLogDocument,
     GenerationJobDocument,
+    ProgressSummaryDocument,
+    QuizSnapshotDocument,
+    QuizAttemptDocument,
+    AdaptationResultDocument,
+    CriticReviewDocument,
+    ResourceAttachmentDocument,
+    EvaluationReportDocument,
 ]
 
 
@@ -34,7 +50,14 @@ __all__ = [
     "DOCUMENT_MODELS",
     "GenerationJobDocument",
     "ProgressLogDocument",
+    "ProgressSummaryDocument",
     "QuizDocument",
+    "QuizAttemptDocument",
+    "QuizSnapshotDocument",
+    "AdaptationResultDocument",
+    "CriticReviewDocument",
+    "ResourceAttachmentDocument",
+    "EvaluationReportDocument",
     "ResourceDocument",
     "UserProfileDocument",
     "get_registered_model_names",

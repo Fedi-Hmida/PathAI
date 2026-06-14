@@ -9,7 +9,11 @@ from app.progress.schemas import (
     WeekProgress,
     WeekProgressResponse,
 )
-from app.progress.service import InMemoryProgressStore, ProgressService
+from app.progress.service import (
+    InMemoryProgressStore,
+    ProgressService,
+    RepositoryBackedProgressStore,
+)
 
 __all__ = [
     "AdapterProgressSignal",
@@ -23,4 +27,5 @@ __all__ = [
     "TopicProgress",
     "WeekProgress",
     "WeekProgressResponse",
+    "RepositoryBackedProgressStore",
 ]

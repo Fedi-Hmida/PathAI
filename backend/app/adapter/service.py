@@ -1,3 +1,5 @@
+from typing import Protocol
+
 from app.adapter.errors import AdapterNotFoundError
 from app.adapter.notifications import build_notification_payload
 from app.adapter.replanner import build_replanned_curriculum
@@ -26,40 +28,64 @@ from app.rag.service import (
     attach_resources_to_curriculum_payload,
     candidate_to_reference,
 )
+from app.repositories import AdapterRepository, FakeAdapterRepository
 
 
-class InMemoryAdaptationStore:
-    def __init__(self) -> None:
-        self._adaptations: dict[str, AdaptationResult] = {}
-
+class AdaptationStore(Protocol):
     def save(self, result: AdaptationResult) -> None:
-        self._adaptations[result.adaptation_id] = result.model_copy(deep=True)
+        ...
 
     def load(self, adaptation_id: str) -> AdaptationResult | None:
-        result = self._adaptations.get(adaptation_id)
-        if result is None:
+        ...
+
+    def history(self, curriculum_id: str) -> list[AdaptationResult]:
+        ...
+
+    def clear(self) -> None:
+        ...
+
+
+class RepositoryBackedAdaptationStore:
+    def __init__(self, repository: AdapterRepository | None = None) -> None:
+        self.repository = repository or FakeAdapterRepository()
+
+    def save(self, result: AdaptationResult) -> None:
+        self.repository.save_adaptation_result(result.model_dump(mode="json"))
+
+    def load(self, adaptation_id: str) -> AdaptationResult | None:
+        payload = self.repository.get_adaptation_result(adaptation_id)
+        if payload is None:
             return None
-        return result.model_copy(deep=True)
+        return AdaptationResult.model_validate(payload)
 
     def history(self, curriculum_id: str) -> list[AdaptationResult]:
         return [
-            result.model_copy(deep=True)
-            for result in self._adaptations.values()
-            if result.curriculum_id == curriculum_id
+            AdaptationResult.model_validate(payload)
+            for payload in self.repository.get_history(curriculum_id)
         ]
 
     def clear(self) -> None:
-        self._adaptations.clear()
+        clear = getattr(self.repository, "clear", None)
+        if callable(clear):
+            clear()
+
+
+class InMemoryAdaptationStore(RepositoryBackedAdaptationStore):
+    """Backward-compatible fake repository store for tests and local demo routes."""
+
+    def __init__(self) -> None:
+        super().__init__(FakeAdapterRepository())
 
 
 class AdapterService:
     def __init__(
         self,
-        store: InMemoryAdaptationStore | None = None,
+        store: AdaptationStore | None = None,
+        repository: AdapterRepository | None = None,
         resource_service: ResourceService | None = None,
         critic_service: CriticService | None = None,
     ) -> None:
-        self.store = store or InMemoryAdaptationStore()
+        self.store = store or RepositoryBackedAdaptationStore(repository)
         self.resource_service = resource_service or ResourceService()
         self.critic_service = critic_service or CriticService()
 

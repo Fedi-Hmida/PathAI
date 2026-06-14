@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.assessment import assessment_service
+from app.api.v1.runtime_services import build_runtime_services
 from app.assessment.errors import AssessmentError
 from app.assessment.schemas import AssessmentSessionState
 from app.core.errors import PathAIError
@@ -14,7 +15,7 @@ from app.curriculum.schemas import (
 from app.curriculum.service import CurriculumService
 
 router = APIRouter(prefix="/curriculum", tags=["curriculum"])
-curriculum_service = CurriculumService()
+curriculum_service: CurriculumService = build_runtime_services().curriculum
 
 
 @router.post(

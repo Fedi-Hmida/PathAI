@@ -9,10 +9,11 @@ from app.adapter.schemas import (
     AdaptationResult,
 )
 from app.adapter.service import AdapterService
+from app.api.v1.runtime_services import build_runtime_services
 from app.core.errors import PathAIError
 
 router = APIRouter(prefix="/adapt", tags=["adaptation"])
-adapter_service = AdapterService()
+adapter_service: AdapterService = build_runtime_services().adapter
 
 
 @router.post(
