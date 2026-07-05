@@ -1,80 +1,9 @@
-"""Repository contracts and deterministic fake repositories."""
+from __future__ import annotations
 
-from app.repositories.factory import (
-    REPOSITORY_BACKEND_ENV,
-    RepositoryBackend,
-    RepositoryBundle,
-    build_repository_bundle,
-    configured_repository_backend,
-)
-from app.repositories.fakes import (
-    FakeAdapterRepository,
-    FakeAssessmentRepository,
-    FakeCriticRepository,
-    FakeCurriculumRepository,
-    FakeEvaluationRepository,
-    FakeOrchestrationRepository,
-    FakeProgressRepository,
-    FakeQuizRepository,
-    FakeResourceRepository,
-)
-from app.repositories.mongo import (
-    MongoAdapterRepository,
-    MongoAssessmentRepository,
-    MongoCriticRepository,
-    MongoCurriculumRepository,
-    MongoEvaluationRepository,
-    MongoProgressRepository,
-    MongoQuizRepository,
-    MongoResourceRepository,
-)
-from app.repositories.protocols import (
-    AdapterRepository,
-    AssessmentRepository,
-    CriticRepository,
-    CurriculumRepository,
-    EvaluationRepository,
-    OrchestrationRepository,
-    ProgressRepository,
-    QuizRepository,
-    RepositoryPayload,
-    ResourceRepository,
-)
-from app.repositories.runtime import get_repository_bundle, reset_repository_bundle_for_tests
+from app.repositories.errors import DuplicateRecordError, NotFoundError, RepositoryError
 
 __all__ = [
-    "AdapterRepository",
-    "AssessmentRepository",
-    "CriticRepository",
-    "CurriculumRepository",
-    "EvaluationRepository",
-    "FakeAdapterRepository",
-    "FakeAssessmentRepository",
-    "FakeCriticRepository",
-    "FakeCurriculumRepository",
-    "FakeEvaluationRepository",
-    "FakeOrchestrationRepository",
-    "FakeProgressRepository",
-    "FakeQuizRepository",
-    "FakeResourceRepository",
-    "MongoAdapterRepository",
-    "MongoAssessmentRepository",
-    "MongoCriticRepository",
-    "MongoCurriculumRepository",
-    "MongoEvaluationRepository",
-    "MongoProgressRepository",
-    "MongoQuizRepository",
-    "MongoResourceRepository",
-    "OrchestrationRepository",
-    "ProgressRepository",
-    "QuizRepository",
-    "REPOSITORY_BACKEND_ENV",
-    "RepositoryBackend",
-    "RepositoryBundle",
-    "RepositoryPayload",
-    "ResourceRepository",
-    "build_repository_bundle",
-    "configured_repository_backend",
-    "get_repository_bundle",
-    "reset_repository_bundle_for_tests",
+    "DuplicateRecordError",
+    "NotFoundError",
+    "RepositoryError",
 ]

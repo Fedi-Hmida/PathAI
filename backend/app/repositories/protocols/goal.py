@@ -1,0 +1,23 @@
+from __future__ import annotations
+
+from typing import Protocol
+
+from app.schemas.enums import GoalStatus
+from app.schemas.goal import LearningGoalDTO
+from app.schemas.ids import GoalId, RunId
+
+
+class GoalRepository(Protocol):
+    def create(self, goal: LearningGoalDTO) -> LearningGoalDTO: ...
+
+    def save(self, goal: LearningGoalDTO) -> LearningGoalDTO: ...
+
+    def get_by_id(self, goal_id: GoalId) -> LearningGoalDTO: ...
+
+    def get_by_run_id(self, run_id: RunId) -> LearningGoalDTO: ...
+
+    def list_all(self) -> list[LearningGoalDTO]: ...
+
+    def update_status(self, goal_id: GoalId, status: GoalStatus) -> LearningGoalDTO: ...
+
+    def clear(self) -> None: ...

@@ -1,13 +1,28 @@
 import logging
+from collections.abc import Mapping
+from typing import Any
+
+SENSITIVE_TOKENS = ("secret", "token", "key", "password", "authorization", "cookie", "uri")
 
 
-def configure_logging(level: str = "INFO") -> None:
+def configure_logging(level: int = logging.INFO) -> None:
     logging.basicConfig(
-        level=getattr(logging, level.upper(), logging.INFO),
-        format="time=%(asctime)s level=%(levelname)s logger=%(name)s message=%(message)s",
-        force=True,
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
 
 
-def get_logger(name: str) -> logging.Logger:
-    return logging.getLogger(name)
+def redact_mapping(values: Mapping[str, Any]) -> dict[str, Any]:
+    redacted: dict[str, Any] = {}
+    for key, value in values.items():
+        if _is_sensitive_key(key):
+            redacted[key] = "***REDACTED***" if value else ""
+        else:
+            redacted[key] = value
+    return redacted
+
+
+def _is_sensitive_key(key: str) -> bool:
+    lowered = key.lower()
+    return any(token in lowered for token in SENSITIVE_TOKENS)
+
