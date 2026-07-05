@@ -51,6 +51,9 @@ chroma_db/
 *.sqlite3
 *.db
 
+# Local phase working reports
+reports/phases/
+
 # OS and editor files
 .DS_Store
 Thumbs.db
