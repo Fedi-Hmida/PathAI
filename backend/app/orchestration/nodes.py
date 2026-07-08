@@ -9,6 +9,15 @@ from pydantic import BaseModel
 
 from app.agents.errors import AgentError
 from app.agents.services import AgentServiceBundle, build_mock_agent_service_bundle
+from app.agents.services.activation import build_injected_agents, resolve_agent_integration_switches
+from app.agents.services.activation.errors import ActivationConfigError
+from app.agents.services.bundle import (
+    AgentIntegrationSwitches,
+    AssessmentAgentMode,
+    CriticAgentMode,
+    CurriculumAgentMode,
+)
+from app.core.settings import get_settings
 from app.fixtures import canonical_demo as demo
 from app.orchestration.events import (
     node_completed_event,
@@ -32,6 +41,7 @@ from app.services import (
     OrchestrationRunService,
     ProgressService,
     QuizService,
+    ReportingService,
     ResourceService,
 )
 
@@ -67,6 +77,7 @@ class ServiceContainerProtocol(Protocol):
     evaluation_service: EvaluationService
     orchestration_run_service: OrchestrationRunService
     dashboard_service: DashboardService
+    reporting_service: ReportingService
 
 
 @dataclass(slots=True)
@@ -83,6 +94,7 @@ class OrchestrationContext:
     evaluations: EvaluationService
     orchestration_runs: OrchestrationRunService
     dashboard: DashboardService
+    reporting: ReportingService
     agent_services: AgentServiceBundle
 
     @classmethod
@@ -91,17 +103,7 @@ class OrchestrationContext:
         container: ServiceContainerProtocol,
         agent_services: AgentServiceBundle | None = None,
     ) -> OrchestrationContext:
-        agents = agent_services or build_mock_agent_service_bundle(
-            assessments=container.assessment_service,
-            knowledge_maps=container.knowledge_map_service,
-            curricula=container.curriculum_service,
-            resources=container.resource_service,
-            critics=container.critic_service,
-            progress=container.progress_service,
-            quizzes=container.quiz_service,
-            adaptations=container.adaptation_service,
-            evaluations=container.evaluation_service,
-        )
+        agents = agent_services or _build_default_agent_service_bundle(container)
         return cls(
             goals=container.goal_service,
             assessments=container.assessment_service,
@@ -115,8 +117,65 @@ class OrchestrationContext:
             evaluations=container.evaluation_service,
             orchestration_runs=container.orchestration_run_service,
             dashboard=container.dashboard_service,
+            reporting=container.reporting_service,
             agent_services=agents,
         )
+
+
+def _build_default_agent_service_bundle(
+    container: ServiceContainerProtocol,
+) -> AgentServiceBundle:
+    """Build the agent bundle a caller gets when it doesn't inject one explicitly.
+
+    Resolves LLM activation from `Settings` (via the Rebuild-14B/14C activation
+    package) so an operator-set `PATHAI_ENABLE_LLM_*_AGENT` flag actually takes
+    effect on this default path. With no flags set, `resolve_agent_integration_switches`
+    returns the same all-deterministic `AgentIntegrationSwitches()` this bundle
+    was built with before this function existed — this default path is a no-op
+    unless an operator has explicitly opted in.
+
+    Only the knowledge_map agent has been verified end-to-end through this
+    orchestration path (Rebuild-14D). Assessment/Critic/Curriculum LLM agents
+    are real and unit-tested, but are not wired into this bundle — requesting
+    one via its flag fails loudly instead of silently activating an
+    unverified path.
+    """
+    settings = get_settings()
+    switches = resolve_agent_integration_switches(settings)
+    _reject_unwired_llm_agent_activation(switches)
+    injected = build_injected_agents(switches, settings)
+    return build_mock_agent_service_bundle(
+        assessments=container.assessment_service,
+        knowledge_maps=container.knowledge_map_service,
+        curricula=container.curriculum_service,
+        resources=container.resource_service,
+        critics=container.critic_service,
+        progress=container.progress_service,
+        quizzes=container.quiz_service,
+        adaptations=container.adaptation_service,
+        evaluations=container.evaluation_service,
+        switches=switches,
+        knowledge_map_agent=injected.knowledge_map,
+    )
+
+
+def _reject_unwired_llm_agent_activation(switches: AgentIntegrationSwitches) -> None:
+    if switches.assessment_agent_mode == AssessmentAgentMode.LLM:
+        raise _unwired_llm_agent_error("assessment_agent_mode")
+    if switches.critic_agent_mode == CriticAgentMode.LLM:
+        raise _unwired_llm_agent_error("critic_agent_mode")
+    if switches.curriculum_agent_mode == CurriculumAgentMode.LLM:
+        raise _unwired_llm_agent_error("curriculum_agent_mode")
+
+
+def _unwired_llm_agent_error(switch_name: str) -> ActivationConfigError:
+    msg = (
+        f"{switch_name} was set to LLM, but only the knowledge_map agent is "
+        "currently wired into the running application (Rebuild-14D). "
+        "Assessment, Critic, and Curriculum LLM activation is not yet reachable "
+        "outside their dedicated unit tests."
+    )
+    return ActivationConfigError(msg)
 
 
 NodeBody = Callable[[GraphState, OrchestrationContext], GraphState]
@@ -309,6 +368,7 @@ def load_evaluation(state: GraphState, context: OrchestrationContext) -> GraphSt
 
 def prepare_dashboard_payload(state: GraphState, context: OrchestrationContext) -> GraphState:
     context.dashboard.get_by_run_id(state["run_id"])
+    context.reporting.get_summary_by_run_id(state["run_id"])
     return merge_state(state)
 
 
@@ -466,6 +526,16 @@ def _event_message_for_node(
     *,
     failed: bool = False,
 ) -> str | None:
+    service_name = _service_name_for_node(node_name)
+    if service_name is not None:
+        pieces = [f"service={service_name}"]
+        artifact_id = _artifact_id_for_node(node_name, state)
+        if artifact_id:
+            pieces.append(f"artifact_id={artifact_id}")
+        if failed:
+            pieces.append("status=failed")
+        return " ".join(pieces)
+
     agent_name = _agent_name_for_node(node_name)
     if agent_name is None:
         return None
@@ -476,6 +546,12 @@ def _event_message_for_node(
     if failed:
         pieces.append("status=failed")
     return " ".join(pieces)
+
+
+def _service_name_for_node(node_name: str) -> str | None:
+    if node_name == "prepare_dashboard_payload":
+        return None
+    return None
 
 
 def _agent_name_for_node(node_name: str) -> str | None:
@@ -512,6 +588,8 @@ def _artifact_id_for_node(node_name: str, state: GraphState) -> str | None:
         return adaptation_ids[-1] if adaptation_ids else None
     if node_name == "load_evaluation":
         return state.get("evaluation_report_id")
+    if node_name == "prepare_dashboard_payload":
+        return "dashboard_summary"
     return None
 
 

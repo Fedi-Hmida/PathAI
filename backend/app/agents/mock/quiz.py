@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from app.agents.deterministic.quiz import build_quiz_output, score_quiz_attempt
 from app.agents.mock.base import deterministic_output
-from app.fixtures import mock_agents
 from app.schemas.quiz import QuizAgentInput, QuizAgentOutput, QuizAttemptDTO, QuizScoreOutput
 
 
@@ -12,18 +12,18 @@ class MockQuizAgent:
         self._fail = fail
         self._malformed = malformed
 
-    def build_quiz(self, _payload: QuizAgentInput) -> QuizAgentOutput:
+    def build_quiz(self, payload: QuizAgentInput) -> QuizAgentOutput:
         return deterministic_output(
             agent_name=self.agent_name,
-            output=mock_agents.QUIZ_AGENT_OUTPUT,
+            output=build_quiz_output(payload),
             fail=self._fail,
             malformed=self._malformed,
         )
 
-    def score_attempt(self, _attempt: QuizAttemptDTO) -> QuizScoreOutput:
+    def score_attempt(self, attempt: QuizAttemptDTO) -> QuizScoreOutput:
         return deterministic_output(
             agent_name=self.agent_name,
-            output=mock_agents.QUIZ_SCORE_OUTPUT,
+            output=score_quiz_attempt(attempt),
             fail=self._fail,
             malformed=self._malformed,
         )

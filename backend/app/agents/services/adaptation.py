@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.agents.contracts import AdapterAgent
+from app.agents.deterministic.quiz import LOW_SCORE_THRESHOLD
 from app.agents.services.common import create_or_get, validate_agent_output
 from app.fixtures import canonical_demo as demo
 from app.schemas.adaptation import (
@@ -11,7 +12,7 @@ from app.schemas.adaptation import (
     AdaptationEventDTO,
 )
 from app.schemas.curriculum import CurriculumDTO
-from app.schemas.enums import AdaptationStatus
+from app.schemas.enums import AdaptationStatus, AdaptationTriggerType
 from app.schemas.goal import LearningGoalDTO
 from app.schemas.progress import ProgressStateDTO
 from app.schemas.quiz import QuizAttemptDTO
@@ -47,14 +48,18 @@ class AdaptationAgentService:
             adaptation_event_id=demo.ADAPTATION_ID,
             goal_id=goal.goal_id,
             curriculum_id=curriculum.curriculum_id,
-            trigger_type=demo.ADAPTATION_EVENT.trigger_type,
-            trigger_details=demo.ADAPTATION_EVENT.trigger_details,
+            trigger_type=_trigger_type(progress_state, quiz_attempt),
+            trigger_details=_trigger_details(output, progress_state, quiz_attempt),
             before_summary=output.before_summary,
             after_summary=output.after_summary,
             changes=output.changes,
-            status=AdaptationStatus.APPLIED,
+            status=AdaptationStatus.PROPOSED,
             quiz_attempt_id=quiz_attempt.quiz_attempt_id if quiz_attempt else None,
-            new_curriculum_id=demo.ADAPTATION_EVENT.new_curriculum_id,
+            stuck_event_ids=[
+                f"{stuck_event.topic_id}:stuck"
+                for stuck_event in progress_state.stuck_events
+            ],
+            new_curriculum_id=None,
             created_at=demo.NOW,
             updated_at=demo.NOW,
         )
@@ -64,3 +69,33 @@ class AdaptationAgentService:
             record=event,
             record_id=event.adaptation_event_id,
         )
+
+
+def _trigger_type(
+    progress_state: ProgressStateDTO,
+    quiz_attempt: QuizAttemptDTO | None,
+) -> AdaptationTriggerType:
+    if quiz_attempt and quiz_attempt.total_score < LOW_SCORE_THRESHOLD:
+        return AdaptationTriggerType.QUIZ_SCORE_BELOW_THRESHOLD
+    if progress_state.stuck_events:
+        return AdaptationTriggerType.STUCK_EVENT_THRESHOLD
+    return AdaptationTriggerType.QUIZ_SCORE_BELOW_THRESHOLD
+
+
+def _trigger_details(
+    output: AdaptationAgentOutput,
+    progress_state: ProgressStateDTO,
+    quiz_attempt: QuizAttemptDTO | None,
+) -> dict[str, str]:
+    details = {
+        "reason": output.trigger_reason,
+        "threshold": f"{LOW_SCORE_THRESHOLD:.2f}",
+    }
+    if quiz_attempt:
+        details["quiz_score"] = f"{quiz_attempt.total_score:.2f}"
+        details["quiz_attempt_id"] = quiz_attempt.quiz_attempt_id
+    if progress_state.current_topic_id:
+        details["current_topic_id"] = progress_state.current_topic_id
+    if progress_state.stuck_events:
+        details["stuck_event_count"] = str(len(progress_state.stuck_events))
+    return details

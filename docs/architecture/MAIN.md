@@ -4298,6 +4298,8 @@ The following remain out of scope until after the no-auth demo works:
 
 Each phase should produce a recap file in `reports/phases`.
 
+> **Roadmap numbering amendment (post Rebuild-8):** Execution diverged from the phase numbers below starting at Rebuild-5 and continued on an independently-numbered backend-first track through Rebuild-13. The phase content below (`Rebuild-0B` through `Rebuild-14`) is preserved as original design-time reference material; it does not reflect actual execution order or status from Rebuild-5 onward. The authoritative, currently adopted execution roadmap is `reports/phases/Phase_Roadmap_Alignment_Note_Post_Rebuild8.md`. In summary: the MongoDB persistence and frontend work described below under Rebuild-9 through Rebuild-12 have not yet been executed under those numbers — they are rescheduled to Rebuild-17 and Rebuild-19/20 respectively, with full E2E validation and final polish now Rebuild-18 and Rebuild-21. Consult that note, not the phase numbers below, for actual project status.
+
 ### Rebuild-0B: Architecture Contracts And Roadmap
 
 Goal:

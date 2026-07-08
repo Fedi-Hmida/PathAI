@@ -42,6 +42,7 @@ from app.services import (
     OrchestrationRunService,
     ProgressService,
     QuizService,
+    ReportingService,
     ResourceService,
 )
 
@@ -85,6 +86,7 @@ class ApiServiceContainer:
     evaluation_service: EvaluationService = field(init=False)
     orchestration_run_service: OrchestrationRunService = field(init=False)
     dashboard_service: DashboardService = field(init=False)
+    reporting_service: ReportingService = field(init=False)
 
     def __post_init__(self) -> None:
         self.goal_service = GoalService(self.goal_repository)
@@ -110,7 +112,10 @@ class ApiServiceContainer:
             quizzes=self.quiz_repository,
             adaptations=self.adaptation_repository,
             evaluations=self.evaluation_repository,
+            assessments=self.assessment_repository,
+            critics=self.critic_repository,
         )
+        self.reporting_service = ReportingService(self.dashboard_service)
 
     def clear(self) -> None:
         self.goal_repository.clear()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.agents.deterministic.resource import build_resource_output
 from app.agents.mock.base import deterministic_output
 from app.fixtures import mock_agents
 from app.schemas.resource import ResourceAgentInput, ResourceAgentOutput
@@ -12,10 +13,12 @@ class MockResourceAgent:
         self._fail = fail
         self._malformed = malformed
 
-    def attach_resources(self, _payload: ResourceAgentInput) -> ResourceAgentOutput:
-        return deterministic_output(
-            agent_name=self.agent_name,
-            output=mock_agents.RESOURCE_AGENT_OUTPUT,
-            fail=self._fail,
-            malformed=self._malformed,
-        )
+    def attach_resources(self, payload: ResourceAgentInput) -> ResourceAgentOutput:
+        if self._fail or self._malformed:
+            return deterministic_output(
+                agent_name=self.agent_name,
+                output=mock_agents.RESOURCE_AGENT_OUTPUT,
+                fail=self._fail,
+                malformed=self._malformed,
+            )
+        return build_resource_output(payload)

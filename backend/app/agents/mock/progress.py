@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from app.agents.deterministic.progress import build_progress_state
 from app.agents.mock.base import deterministic_output
-from app.fixtures import canonical_demo as demo
 from app.schemas.curriculum import CurriculumDTO
 from app.schemas.goal import LearningGoalDTO
 from app.schemas.progress import ProgressStateDTO
@@ -17,13 +17,13 @@ class MockProgressAgent:
 
     def build_progress_state(
         self,
-        _goal: LearningGoalDTO,
-        _curriculum: CurriculumDTO,
-        _quiz_attempt: QuizAttemptDTO | None = None,
+        goal: LearningGoalDTO,
+        curriculum: CurriculumDTO,
+        quiz_attempt: QuizAttemptDTO | None = None,
     ) -> ProgressStateDTO:
         return deterministic_output(
             agent_name=self.agent_name,
-            output=demo.PROGRESS_STATE,
+            output=build_progress_state(goal, curriculum, quiz_attempt),
             fail=self._fail,
             malformed=self._malformed,
         )

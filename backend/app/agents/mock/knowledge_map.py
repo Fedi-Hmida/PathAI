@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from app.agents.deterministic.knowledge_map import build_knowledge_map_output
 from app.agents.mock.base import deterministic_output
-from app.fixtures import mock_agents
 from app.schemas.knowledge_map import KnowledgeMapAgentInput, KnowledgeMapAgentOutput
 
 
@@ -12,10 +12,10 @@ class MockKnowledgeMapAgent:
         self._fail = fail
         self._malformed = malformed
 
-    def build_knowledge_map(self, _payload: KnowledgeMapAgentInput) -> KnowledgeMapAgentOutput:
+    def build_knowledge_map(self, payload: KnowledgeMapAgentInput) -> KnowledgeMapAgentOutput:
         return deterministic_output(
             agent_name=self.agent_name,
-            output=mock_agents.KNOWLEDGE_MAP_AGENT_OUTPUT,
+            output=build_knowledge_map_output(payload),
             fail=self._fail,
             malformed=self._malformed,
         )

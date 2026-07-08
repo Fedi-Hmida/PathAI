@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.agents.contracts import EvaluationAgent
+from app.agents.deterministic.evaluation import EVALUATION_WEIGHTS
 from app.agents.services.common import create_or_get, validate_agent_output
 from app.fixtures import canonical_demo as demo
 from app.schemas.adaptation import AdaptationEventDTO
@@ -53,12 +54,20 @@ class EvaluationAgentService:
             goal_id=goal.goal_id,
             run_id=goal.run_id,
             metric_scores=output.metric_scores,
-            weights=demo.EVALUATION_REPORT.weights,
+            weights=EVALUATION_WEIGHTS,
             overall_score=output.weighted_score,
             pass_status=output.pass_status,
             warnings=output.warnings,
             recommendations=output.recommendations,
-            artifact_ids=demo.EVALUATION_REPORT.artifact_ids,
+            artifact_ids=_artifact_ids(
+                goal=goal,
+                assessment=assessment,
+                knowledge_map=knowledge_map,
+                curriculum=curriculum,
+                critic_review=critic_review,
+                quiz_attempt=quiz_attempt,
+                adaptation_event=adaptation_event,
+            ),
             created_at=demo.NOW,
             updated_at=demo.NOW,
         )
@@ -68,3 +77,28 @@ class EvaluationAgentService:
             record=report,
             record_id=report.evaluation_report_id,
         )
+
+
+def _artifact_ids(
+    *,
+    goal: LearningGoalDTO,
+    assessment: AssessmentSessionDTO,
+    knowledge_map: KnowledgeMapDTO,
+    curriculum: CurriculumDTO,
+    critic_review: CriticReviewDTO | None,
+    quiz_attempt: QuizAttemptDTO | None,
+    adaptation_event: AdaptationEventDTO | None,
+) -> dict[str, str]:
+    artifact_ids = {
+        "goal_id": goal.goal_id,
+        "assessment_session_id": assessment.assessment_session_id,
+        "knowledge_map_id": knowledge_map.knowledge_map_id,
+        "curriculum_id": curriculum.curriculum_id,
+    }
+    if critic_review is not None:
+        artifact_ids["critic_review_id"] = critic_review.critic_review_id
+    if quiz_attempt is not None:
+        artifact_ids["quiz_attempt_id"] = quiz_attempt.quiz_attempt_id
+    if adaptation_event is not None:
+        artifact_ids["adaptation_event_id"] = adaptation_event.adaptation_event_id
+    return artifact_ids

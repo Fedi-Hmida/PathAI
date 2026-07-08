@@ -1,45 +1,39 @@
 import os
-from pathlib import Path
 
 import pytest
 
 from app.core.settings import Settings
-from app.llm.structured_output_spike import (
-    LiveLLMNotConfiguredError,
-    load_live_settings_from_env_file,
-    run_optional_live_structured_output_spike,
+from app.llm.live_client import (
+    LIVE_LLM_OPT_IN_ENV_VAR,
+    LiveLLMSmokeResponse,
+    build_live_client_from_settings,
+    run_live_structured_output_smoke,
 )
-from app.schemas.llm_spike import MiniKnowledgeMapOutput
 
 pytestmark = pytest.mark.skipif(
-    os.getenv("ENABLE_LIVE_LLM_TESTS", "false").lower() != "true",
-    reason="Live LLM spike tests are optional and disabled by default.",
+    os.getenv(LIVE_LLM_OPT_IN_ENV_VAR, "").lower() not in {"1", "true", "yes"},
+    reason=(
+        "Live LLM smoke tests are optional and require "
+        f"{LIVE_LLM_OPT_IN_ENV_VAR}=1."
+    ),
 )
 
 
-@pytest.mark.asyncio
-@pytest.mark.live_llm
-async def test_live_llm_spike_is_skipped_unless_enabled() -> None:
-    settings = Settings(enable_live_llm_tests=False)
-
-    with pytest.raises(LiveLLMNotConfiguredError):
-        await run_optional_live_structured_output_spike(settings, MiniKnowledgeMapOutput)
-
-
-@pytest.mark.asyncio
-@pytest.mark.live_llm
-async def test_live_llm_spike_requires_non_mock_provider() -> None:
-    settings = Settings(enable_live_llm_tests=True, llm_provider="mock")
-
-    with pytest.raises(LiveLLMNotConfiguredError):
-        await run_optional_live_structured_output_spike(settings, MiniKnowledgeMapOutput)
+def _live_settings_or_skip() -> Settings:
+    settings = Settings()
+    try:
+        build_live_client_from_settings(settings)
+    except RuntimeError as exc:
+        pytest.skip(str(exc))
+    return settings
 
 
 @pytest.mark.asyncio
 @pytest.mark.live_llm
-async def test_live_llm_spike_from_env_file() -> None:
-    settings = load_live_settings_from_env_file(Path(__file__).parents[3] / ".env")
+async def test_live_llm_smoke_returns_minimal_structured_json() -> None:
+    settings = _live_settings_or_skip()
 
-    result = await run_optional_live_structured_output_spike(settings, MiniKnowledgeMapOutput)
+    result = await run_live_structured_output_smoke(settings, LiveLLMSmokeResponse)
 
-    assert result.concepts
+    assert result.status == "ok"
+    assert result.message

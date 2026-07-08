@@ -8,7 +8,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Application settings loaded from environment variables without reading .env files."""
 
-    model_config = SettingsConfigDict(env_file=None, extra="ignore", case_sensitive=False)
+    model_config = SettingsConfigDict(
+        env_file=None,
+        extra="ignore",
+        case_sensitive=False,
+        populate_by_name=True,
+    )
 
     app_name: str = "PathAI"
     app_env: str = "local"
@@ -29,6 +34,22 @@ class Settings(BaseSettings):
     llm_mock_mode: bool = True
     llm_timeout_seconds: int = Field(default=45, ge=1, le=300)
     enable_live_llm_tests: bool = False
+    enable_llm_assessment_agent: bool = Field(
+        default=False,
+        validation_alias="PATHAI_ENABLE_LLM_ASSESSMENT_AGENT",
+    )
+    enable_llm_knowledge_map_agent: bool = Field(
+        default=False,
+        validation_alias="PATHAI_ENABLE_LLM_KNOWLEDGE_MAP_AGENT",
+    )
+    enable_llm_critic_agent: bool = Field(
+        default=False,
+        validation_alias="PATHAI_ENABLE_LLM_CRITIC_AGENT",
+    )
+    enable_llm_curriculum_agent: bool = Field(
+        default=False,
+        validation_alias="PATHAI_ENABLE_LLM_CURRICULUM_AGENT",
+    )
 
     @property
     def cors_origins(self) -> list[str]:
