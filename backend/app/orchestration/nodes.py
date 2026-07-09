@@ -10,13 +10,6 @@ from pydantic import BaseModel
 from app.agents.errors import AgentError
 from app.agents.services import AgentServiceBundle, build_mock_agent_service_bundle
 from app.agents.services.activation import build_injected_agents, resolve_agent_integration_switches
-from app.agents.services.activation.errors import ActivationConfigError
-from app.agents.services.bundle import (
-    AgentIntegrationSwitches,
-    AssessmentAgentMode,
-    CriticAgentMode,
-    CurriculumAgentMode,
-)
 from app.core.settings import get_settings
 from app.fixtures import canonical_demo as demo
 from app.orchestration.events import (
@@ -134,15 +127,15 @@ def _build_default_agent_service_bundle(
     was built with before this function existed — this default path is a no-op
     unless an operator has explicitly opted in.
 
-    Only the knowledge_map agent has been verified end-to-end through this
-    orchestration path (Rebuild-14D). Assessment/Critic/Curriculum LLM agents
-    are real and unit-tested, but are not wired into this bundle — requesting
-    one via its flag fails loudly instead of silently activating an
-    unverified path.
+    All four agents (knowledge_map: Rebuild-14D, assessment: Rebuild-14F,
+    critic/curriculum: Rebuild-14G) are now verified end-to-end through this
+    orchestration path. The one-agent-at-a-time invariant is enforced solely by
+    `resolve_agent_integration_switches`, which raises `ActivationConfigError`
+    if 2+ flags are set — no additional guard is needed here now that every
+    switch has a real, wired destination.
     """
     settings = get_settings()
     switches = resolve_agent_integration_switches(settings)
-    _reject_unwired_llm_agent_activation(switches)
     injected = build_injected_agents(switches, settings)
     return build_mock_agent_service_bundle(
         assessments=container.assessment_service,
@@ -155,27 +148,11 @@ def _build_default_agent_service_bundle(
         adaptations=container.adaptation_service,
         evaluations=container.evaluation_service,
         switches=switches,
+        assessment_agent=injected.assessment,
         knowledge_map_agent=injected.knowledge_map,
+        critic_agent=injected.critic,
+        curriculum_agent=injected.curriculum,
     )
-
-
-def _reject_unwired_llm_agent_activation(switches: AgentIntegrationSwitches) -> None:
-    if switches.assessment_agent_mode == AssessmentAgentMode.LLM:
-        raise _unwired_llm_agent_error("assessment_agent_mode")
-    if switches.critic_agent_mode == CriticAgentMode.LLM:
-        raise _unwired_llm_agent_error("critic_agent_mode")
-    if switches.curriculum_agent_mode == CurriculumAgentMode.LLM:
-        raise _unwired_llm_agent_error("curriculum_agent_mode")
-
-
-def _unwired_llm_agent_error(switch_name: str) -> ActivationConfigError:
-    msg = (
-        f"{switch_name} was set to LLM, but only the knowledge_map agent is "
-        "currently wired into the running application (Rebuild-14D). "
-        "Assessment, Critic, and Curriculum LLM activation is not yet reachable "
-        "outside their dedicated unit tests."
-    )
-    return ActivationConfigError(msg)
 
 
 NodeBody = Callable[[GraphState, OrchestrationContext], GraphState]

@@ -272,3 +272,51 @@ The following are excluded until explicitly requested:
 ## 16. Final Rule
 
 Every future PathAI task must be small, scoped, validated, secure, aligned with `MAIN.md`, and compliant with `RULES.md`.
+
+## 17. Multi-Agent Operation Rules
+
+Status: approved direction, not yet implemented. These rules bind any future phase that enables more than one LLM-backed agent in the same orchestration run. See `MAIN.md` §7.8 for the architectural policy this enforces.
+
+### 17.1 What Counts As Multi-Agent
+
+Do not describe a run as "multi-agent" in any code comment, recap, or document unless all five of the following hold:
+
+1. Two or more agents are LLM-backed in the same orchestration run, not deterministic stand-ins.
+2. A real data dependency exists between at least two of them: one agent's real LLM output is consumed as another agent's input.
+3. The run is reachable by a real caller over HTTP, not only by direct Python construction in a test.
+4. The run is observable and bounded: an operator can see which agents ran in LLM mode, how many LLM calls were made, and how long the run took, under a hard per-run ceiling.
+5. The specific combination has been validated as a combination, not merely as independent single agents.
+
+If 2+ agents are active but any of points 2 through 5 fails, call it what it is — parallel single-agent activation — and say so plainly.
+
+### 17.2 Validated-Combination Allowlist
+
+- Zero enabled LLM agents, or exactly one, remains allowed by default. This is the current behavior and must not regress.
+- A combination of two or more LLM agents may only be activated if that exact combination appears in an explicit, code-defined allowlist.
+- Each allowlisted combination must have its own phase, its own interaction test, and its own recap before being added. Adding a combination to the allowlist without an interaction test behind it is forbidden.
+- Any requested combination of 2+ agents that is not allowlisted must raise `ActivationConfigError` at construction time, with a sanitized message naming the rejected combination and the phase that would need to land first. It must never silently activate, and never silently degrade to single-agent or deterministic mode.
+- Rationale: Rebuild-14D shipped a defect where per-agent flags silently activated a real, never-integration-tested LLM agent. The allowlist exists so that the same class of defect cannot reappear at the combination level.
+
+### 17.3 Run-Level Budget
+
+- Any run with two or more LLM agents active must execute under a run-level budget: a maximum total number of LLM calls per run and a maximum wall-clock duration per run.
+- The run-level budget is enforced independently of, and in addition to, any single agent's own retry and timeout policy. An agent's `LLMRetryPolicy` bounds one agent; the run budget bounds the run.
+- Exceeding the budget must fail safe: remaining agents degrade to their deterministic fallback. It must not hard-fail the orchestration run, consistent with the existing per-agent fallback policy.
+- Budget exhaustion must emit a sanitized, observable event through the existing `LLMReliabilityObserver` boundary. It must not be silent.
+
+### 17.4 Interaction Tests Are A First-Class Category
+
+- Multi-agent interaction tests use the suffix `*_agent_interaction.py`, taking their place alongside the existing `*_behavior.py`, `*_events.py`, `*_orchestration.py`, and `*_scope_security.py` conventions.
+- An interaction test must assert on the handoff itself: that agent B's real LLM call consumed agent A's real LLM output, not agent A's deterministic fixture. Asserting that both agents merely ran is insufficient.
+- Interaction tests are deterministic and offline. They use `FakeLLMClient` scenarios, exactly like every existing LLM-agent test. They must never require a real provider, network, or credentials.
+
+### 17.5 Existing Rules Are Unchanged At Multi-Agent Scale
+
+Multi-agent operation grants no exemption from any rule in this document. Restated explicitly because these are the rules most likely to be rationalized away while wiring several agents together:
+
+- Layering (§3, §4) holds. Do not loosen the API/agent or orchestration/LLM boundaries to make multi-agent wiring more convenient. Orchestration must not import `app.llm`; helpers that need it live under `app/agents/llm/`, the only allowlisted directory.
+- Agents remain persistence-free and structured-output only (§5). Services still decide what is saved.
+- All LLM output remains untrusted and must be schema-validated before use, including — especially — when one agent's output becomes another agent's input (§5, §9).
+- Redaction (§7, §9) applies to every new event, error, and log line the run-level budget introduces.
+- The default test suite must still require no real LLM, no network, and no MongoDB (§4, §14).
+- Phase discipline (§12) holds: one combination per phase, each with its own recap, no batching.

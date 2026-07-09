@@ -8,7 +8,7 @@ from app.agents.llm.client_selection import build_llm_client_for_agent
 from app.agents.llm.critic import LLMCriticAgent
 from app.agents.llm.curriculum import LLMCurriculumAgent
 from app.agents.llm.knowledge_map import LLMKnowledgeMapAgent
-from app.agents.llm.observer_selection import build_default_observer
+from app.agents.llm.observer_selection import build_run_scoped_observer
 from app.agents.llm.retry_policy_selection import resolve_retry_policy
 from app.agents.mock import (
     MockAssessorAgent,
@@ -50,18 +50,24 @@ def build_injected_agents(
     agent as `fallback_agent` with `fallback_on_error=True` — a live/fake
     provider failure degrades to deterministic output, it never hard-fails
     the caller.
+
+    All agents built from this one call share a single run-scoped observer
+    (Rebuild-22B), so a run-level call/wall-clock ceiling applies across every
+    agent in the run rather than independently per agent.
     """
+    observer = build_run_scoped_observer()
     return InjectedAgents(
-        assessment=_build_assessment_agent(switches, settings),
-        knowledge_map=_build_knowledge_map_agent(switches, settings),
-        critic=_build_critic_agent(switches, settings),
-        curriculum=_build_curriculum_agent(switches, settings),
+        assessment=_build_assessment_agent(switches, settings, observer),
+        knowledge_map=_build_knowledge_map_agent(switches, settings, observer),
+        critic=_build_critic_agent(switches, settings, observer),
+        curriculum=_build_curriculum_agent(switches, settings, observer),
     )
 
 
 def _build_assessment_agent(
     switches: AgentIntegrationSwitches,
     settings: Settings,
+    observer,
 ) -> AssessorAgent | None:
     if switches.assessment_agent_mode != AssessmentAgentMode.LLM:
         return None
@@ -72,13 +78,14 @@ def _build_assessment_agent(
         fallback_agent=MockAssessorAgent(),
         fallback_on_error=True,
         retry_policy=retry_policy,
-        observer=build_default_observer(),
+        observer=observer,
     )
 
 
 def _build_knowledge_map_agent(
     switches: AgentIntegrationSwitches,
     settings: Settings,
+    observer,
 ) -> KnowledgeMapAgent | None:
     if switches.knowledge_map_agent_mode != KnowledgeMapAgentMode.LLM:
         return None
@@ -89,13 +96,14 @@ def _build_knowledge_map_agent(
         fallback_agent=MockKnowledgeMapAgent(),
         fallback_on_error=True,
         retry_policy=retry_policy,
-        observer=build_default_observer(),
+        observer=observer,
     )
 
 
 def _build_critic_agent(
     switches: AgentIntegrationSwitches,
     settings: Settings,
+    observer,
 ) -> CriticAgent | None:
     if switches.critic_agent_mode != CriticAgentMode.LLM:
         return None
@@ -106,13 +114,14 @@ def _build_critic_agent(
         fallback_agent=MockCriticAgent(),
         fallback_on_error=True,
         retry_policy=retry_policy,
-        observer=build_default_observer(),
+        observer=observer,
     )
 
 
 def _build_curriculum_agent(
     switches: AgentIntegrationSwitches,
     settings: Settings,
+    observer,
 ) -> CurriculumAgent | None:
     if switches.curriculum_agent_mode != CurriculumAgentMode.LLM:
         return None
@@ -123,5 +132,5 @@ def _build_curriculum_agent(
         fallback_agent=MockCurriculumAgent(),
         fallback_on_error=True,
         retry_policy=retry_policy,
-        observer=build_default_observer(),
+        observer=observer,
     )

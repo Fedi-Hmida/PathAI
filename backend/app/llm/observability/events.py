@@ -13,6 +13,7 @@ class LLMReliabilityEventType(StrEnum):
     RETRY_EXHAUSTED = "retry_exhausted"
     FALLBACK_USED = "fallback_used"
     SUCCEEDED = "succeeded"
+    RUN_BUDGET_EXHAUSTED = "run_budget_exhausted"
 
 
 _REDACTED_FIELDS = ("error_code", "provider", "mode", "reason_code")

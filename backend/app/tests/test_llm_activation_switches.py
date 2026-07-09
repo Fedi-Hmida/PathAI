@@ -5,6 +5,7 @@ from itertools import combinations
 import pytest
 
 from app.agents.services.activation import ActivationConfigError, resolve_agent_integration_switches
+from app.agents.services.activation.allowlist import VALIDATED_COMBINATIONS
 from app.agents.services.bundle import (
     AgentIntegrationSwitches,
     AssessmentAgentMode,
@@ -65,7 +66,17 @@ def test_single_flag_enables_only_its_own_switch(flag_field: str) -> None:
             assert value.value == "deterministic"
 
 
-@pytest.mark.parametrize("flag_pair", list(combinations(_FLAG_FIELDS, 2)))
+# Excludes any pair already on the validated-combination allowlist (Rebuild-22C)
+# so this list adapts automatically as the allowlist grows, without needing a
+# hand-maintained exclusion here.
+_NON_ALLOWLISTED_FLAG_PAIRS: list[tuple[str, str]] = [
+    pair
+    for pair in combinations(_FLAG_FIELDS, 2)
+    if frozenset(_SWITCH_FIELD_FOR_FLAG[flag] for flag in pair) not in VALIDATED_COMBINATIONS
+]
+
+
+@pytest.mark.parametrize("flag_pair", _NON_ALLOWLISTED_FLAG_PAIRS)
 def test_two_flags_enabled_raises_activation_config_error(
     flag_pair: tuple[str, str],
 ) -> None:
@@ -77,6 +88,20 @@ def test_two_flags_enabled_raises_activation_config_error(
     message = str(exc_info.value)
     assert _SWITCH_FIELD_FOR_FLAG[flag_pair[0]] in message
     assert _SWITCH_FIELD_FOR_FLAG[flag_pair[1]] in message
+
+
+def test_allowlisted_critic_curriculum_combination_resolves_to_both_llm() -> None:
+    settings = Settings(
+        enable_llm_critic_agent=True,
+        enable_llm_curriculum_agent=True,
+    )
+
+    switches = resolve_agent_integration_switches(settings)
+
+    assert switches.critic_agent_mode == CriticAgentMode.LLM
+    assert switches.curriculum_agent_mode == CurriculumAgentMode.LLM
+    assert switches.assessment_agent_mode == AssessmentAgentMode.DETERMINISTIC
+    assert switches.knowledge_map_agent_mode == KnowledgeMapAgentMode.DETERMINISTIC
 
 
 def test_three_flags_enabled_raises_activation_config_error() -> None:

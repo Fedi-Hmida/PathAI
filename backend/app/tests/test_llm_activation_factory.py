@@ -31,7 +31,7 @@ from app.core.settings import Settings
 from app.fixtures import canonical_demo as demo
 from app.llm.fake_client import FakeLLMClient
 from app.llm.live_client import LiveLLMNotConfiguredError
-from app.llm.observability.sinks import LoggingObserver
+from app.llm.observability.budget import RunScopedBudgetObserver
 from app.schemas.knowledge_map import KnowledgeMapAgentInput, KnowledgeMapAgentOutput
 
 
@@ -67,7 +67,9 @@ def test_knowledge_map_llm_switch_builds_fake_backed_agent_with_fallback() -> No
     assert isinstance(injected.knowledge_map, LLMKnowledgeMapAgent)
     assert isinstance(injected.knowledge_map.client, FakeLLMClient)
     assert isinstance(injected.knowledge_map.fallback_agent, MockKnowledgeMapAgent)
-    assert isinstance(injected.knowledge_map.observer, LoggingObserver)
+    # Rebuild-22B: every agent now shares one run-scoped observer instead of
+    # its own independent LoggingObserver.
+    assert isinstance(injected.knowledge_map.observer, RunScopedBudgetObserver)
 
 
 def test_critic_llm_switch_builds_fake_backed_agent_with_fallback() -> None:

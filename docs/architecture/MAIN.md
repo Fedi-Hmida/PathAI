@@ -736,6 +736,12 @@ The command center should show:
 
 The workflow graph should coordinate the end-to-end demo without hiding domain rules. The first graph should be a straight-line happy path with only bounded loops for assessment, critic revision, and adaptation.
 
+> **Implementation status note (as of Rebuild-22 planning).** `app/orchestration/graph.py` today implements the straight-line happy path, and every node in it calls a real agent through the service layer (`load_assessment` → `agent_services.assessment.run_diagnostic`, `load_curriculum` → `agent_services.curriculum.build`, `load_critic_review` → `agent_services.critic.review`, and so on). It is a single-pass generation pipeline, not an artifact loader.
+>
+> What it does **not** yet implement are the **bounded loops** specified in §7.3: `should_continue_assessment`, `should_revise_curriculum`, and `should_adapt`. The graph's only conditional edge (`graph.py::_route_after_node`) continues to the next node or stops on failure — there is no re-entry, and `CurriculumAgentInput.critic_recommendations` is always empty with `critic_revision_attempt` fixed at `0`, so the critic's findings never feed back into curriculum generation.
+>
+> Convergence between `graph.py` and this section's bounded-loop specification is scoped as **Rebuild-23** (see `reports/phases/Plan.md`). It is a graph-shape change (conditional edges and re-entry), not an agent-wiring change, and must not be attempted as a side effect of enabling additional agent flags.
+
 ### 7.2 Workflow Constants
 
 ```text
@@ -1059,6 +1065,46 @@ For v1 local no-auth demo:
 - The system should persist `OrchestrationRun` and node events for auditability.
 - If a workflow fails, the user can restart the demo run from the latest persisted major artifact where supported.
 - Fine-grained graph checkpoint resume can be added after the no-auth demo works.
+
+### 7.8 Multi-Agent Execution Policy
+
+Status: **approved direction, not yet implemented.** The enforcement rules corresponding to this policy are `RULES.md` §17. Nothing described in this subsection exists in `app/` today.
+
+#### 7.8.1 Current State
+
+Nine agent roles run in every orchestration run, but only four have any LLM-backed implementation (`app/agents/llm/`): Assessment, Knowledge Map, Critic, Curriculum. The remaining five (Resource, Progress, Quiz, Adaptation, Evaluation) are deterministic-only, with no LLM path scaffolded.
+
+`resolve_agent_integration_switches` (`app/agents/services/activation/switches.py`) currently hard-enforces **at most one** LLM-backed agent per process, raising `ActivationConfigError` if two or more `PATHAI_ENABLE_LLM_*_AGENT` flags are set. This is a deliberate rollout-safety gate introduced in Rebuild-14B, not an architectural ceiling: the agent classes are independent objects and nothing in them prevents concurrent use.
+
+The practical consequence is that PathAI today is **not** a multi-agent AI system. Every run is one real-AI agent embedded in an otherwise deterministic pipeline. The system is a multi-agent *architecture* (nine separately-contracted roles), which is a different claim and should not be conflated with it in any document.
+
+#### 7.8.2 Definition Of Multi-Agent
+
+A run qualifies as multi-agent only if all five conditions in `RULES.md` §17.1 hold: two or more LLM-backed agents in the same run; a real data dependency between them; reachability over HTTP; per-run observability and a hard bound; and validation of the specific combination. Falling short on any of points 2 through 5 makes a run parallel single-agent activation, not a multi-agent platform.
+
+#### 7.8.3 Validated-Combination Allowlist
+
+The binary one-at-a-time gate is to be replaced by a graduated, code-defined allowlist of validated combinations, per `RULES.md` §17.2. Zero or one enabled LLM agent remains allowed unconditionally. A set of two or more is admitted only once that exact combination has a phase, an interaction test, and a recap behind it. Unlisted combinations continue to fail loudly at construction time.
+
+This is deliberately not a flag flip. Removing the gate wholesale would trade a safe-but-limited system for an unvalidated one, and would reintroduce — at the combination level — the precise defect Rebuild-14D shipped and later corrected, in which per-agent flags silently activated a real, never-integration-tested LLM agent.
+
+#### 7.8.4 First Target Combination: Curriculum → Critic
+
+The Curriculum→Critic handoff is the natural first validated combination because the data dependency **already exists structurally in the current graph**. `load_curriculum` persists the curriculum agent's output through `CurriculumAgentService`; `load_critic_review` reads that persisted curriculum back and passes it into the critic agent. Enabling both in LLM mode therefore produces a genuine LLM→LLM handoff with no graph change required — only the allowlist and an interaction test proving the critic consumed the curriculum agent's real output rather than a deterministic fixture.
+
+The reverse direction, Critic→Curriculum feedback, does **not** exist and cannot be added this way. It requires the bounded `should_revise_curriculum` loop from §7.3 — a graph-shape change, scoped separately as Rebuild-23 (§7.1's implementation status note).
+
+#### 7.8.5 Run-Level Budget
+
+Rebuild-15 bounded reliability per agent: retry caps, bounded backoff, timeout policy, and a sanitized `LLMReliabilityObserver` event stream. Once two or more agents chain real LLM calls inside one run, that per-agent bound is no longer sufficient — nothing constrains the run as a whole.
+
+A run-level budget is therefore a prerequisite for any allowlisted combination: a maximum total LLM call count and a maximum wall-clock duration per run, enforced above and independently of any single agent's retry policy, failing safe to deterministic fallback rather than hard-failing the run, and emitting a sanitized, observable event on exhaustion. It aggregates the existing per-agent observer stream rather than replacing it.
+
+Note the boundary constraint this imposes: `app/orchestration/` must not import `app.llm` (standing scope-security audit). A run-scoped observer must therefore be constructed inside the activation factory (`build_injected_agents`), which orchestration already calls legitimately, and any helper that itself imports `app.llm` belongs under `app/agents/llm/` — the only allowlisted directory for that import.
+
+#### 7.8.6 Sequencing
+
+Per-run budget primitives land first, inert and called by nothing. The budget is then wired into a run. Only then does the first validated combination open. Each step is its own phase with its own recap, following the same safest-first discipline used for the single-agent rollout in Rebuild-14D/14F/14G and Rebuild-15A–D. Combination phases can be validated test-only ahead of RAG (Rebuild-16) and persistence (Rebuild-17); HTTP reachability — condition 3 of §7.8.2 — remains blocked on Rebuild-18, which adds the first route that triggers orchestration at all.
 
 
 ## 8. WorkflowState Schema

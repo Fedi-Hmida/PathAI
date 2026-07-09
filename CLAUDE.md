@@ -10,7 +10,7 @@ The project follows a phased "rebuild" process (Rebuild-0 through Rebuild-13+, t
 
 ## Architecture references (mandatory reading before non-trivial backend work)
 
-- `docs/architecture/MAIN.md` — canonical architecture blueprint, contracts, planned folder structure, agent I/O contracts, Mongo document schemas, LangGraph node design. It is long (5000+ lines) and partly **aspirational** — e.g. it describes a generation-pipeline LangGraph graph, but the actual `app/orchestration/graph.py` is a straight-line graph that *loads/assembles already-persisted artifacts* (`load_goal`, `load_assessment`, ... `prepare_dashboard_payload`), not a generation pipeline. Similarly `app/rag/` and `app/evaluation/` are still empty packages despite being specified in MAIN.md. Verify against actual code, don't assume the doc is current.
+- `docs/architecture/MAIN.md` — canonical architecture blueprint, contracts, planned folder structure, agent I/O contracts, Mongo document schemas, LangGraph node design. It is long (5000+ lines) and partly **aspirational**. `app/orchestration/graph.py` *is* a real single-pass generation pipeline — despite the `load_*` node names, every node calls a live agent through the service layer (`load_curriculum` → `agent_services.curriculum.build`, `load_critic_review` → `agent_services.critic.review`, etc.). What it does **not** implement are MAIN.md §7.3's bounded loops (`should_continue_assessment`, `should_revise_curriculum`, `should_adapt`): `_route_after_node` only continues or stops-on-failure, and the critic's findings never feed back into curriculum generation (`critic_recommendations` is always `[]`). That convergence is scoped as Rebuild-23. Similarly `app/rag/` and `app/evaluation/` are still empty packages despite being specified in MAIN.md. Verify against actual code, don't assume the doc is current.
 - `docs/architecture/RULES.md` — **mandatory** engineering/security/phase-discipline rulebook. Read this before making architectural changes; it is treated as binding, not advisory.
 
 Key rules from `RULES.md` worth internalizing (see the file for the full list):
@@ -74,6 +74,10 @@ Layering on disk mirrors `docs/architecture/MAIN.md` §5:
 ### Testing conventions
 
 Tests live in `backend/app/tests/`, one file per behavior area, commonly split into `*_behavior.py` (service/agent behavior), `*_events.py` (orchestration event emission), `*_orchestration.py` (graph wiring), `*_scope_security.py` (boundary/security checks — e.g. `test_agent_scope_security.py` verifies agents can't reach persistence). `asyncio_mode = "auto"` is set in `pyproject.toml`, so async tests don't need explicit markers beyond `live_llm` where relevant.
+
+## Commit conventions
+
+Never include a `Co-Authored-By: Claude` trailer (or any similar AI-attribution trailer) in commit messages — commits should be attributed to the user only.
 
 ## Docs layout
 

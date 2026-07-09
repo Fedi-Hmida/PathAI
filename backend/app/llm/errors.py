@@ -57,3 +57,8 @@ class LLMOutputValidationError(LLMStructuredOutputError):
 class LLMRetryLimitExceeded(LLMError):
     error_code = "llm_retry_limit_exceeded"
     retryable = False
+
+
+class LLMRunBudgetExhaustedError(LLMError):
+    error_code = "llm_run_budget_exhausted"
+    retryable = False

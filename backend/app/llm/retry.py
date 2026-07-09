@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Protocol, runtime_checkable
 
 from app.llm.contracts import LLMClient, LLMRetryPolicy, StructuredModel, StructuredOutputRequest
 from app.llm.errors import (
@@ -8,10 +9,24 @@ from app.llm.errors import (
     LLMOutputParseError,
     LLMProviderError,
     LLMRetryLimitExceeded,
+    LLMRunBudgetExhaustedError,
     LLMTimeoutError,
 )
 from app.llm.observability.events import LLMReliabilityEvent, LLMReliabilityEventType
 from app.llm.observability.observer import LLMReliabilityObserver, NullObserver
+
+
+@runtime_checkable
+class _ExhaustionAwareObserver(Protocol):
+    """Structural marker for an observer that can report a run-level ceiling.
+
+    Deliberately not part of `LLMReliabilityObserver` itself — every sink
+    (`NullObserver`, `CountingObserver`, `LoggingObserver`) only records
+    events and has no notion of exhaustion. Only `RunScopedBudgetObserver`
+    (Rebuild-22) satisfies this structurally.
+    """
+
+    def exhausted(self) -> bool: ...
 
 
 async def generate_structured_with_retry(
@@ -27,6 +42,18 @@ async def generate_structured_with_retry(
     schema_name = output_schema.__name__
     provider = request.metadata.provider
     mode = request.metadata.mode
+
+    if (
+        isinstance(reliability_observer, _ExhaustionAwareObserver)
+        and reliability_observer.exhausted()
+    ):
+        # A skipped call is not an attempt — bail before the loop starts, so
+        # no ATTEMPT_STARTED is recorded for a call that was never made.
+        raise LLMRunBudgetExhaustedError(
+            "Run-level LLM call budget exhausted before this call could start.",
+            provider=provider,
+        )
+
     last_error: LLMError | None = None
     for attempt in range(1, retry_policy.max_attempts + 1):
         reliability_observer.record(
