@@ -17,14 +17,22 @@ class CurriculumAgentService:
     agent: CurriculumAgent
     curricula: CurriculumService
 
-    def build(self, goal: LearningGoalDTO, knowledge_map: KnowledgeMapDTO) -> CurriculumDTO:
+    def build(
+        self,
+        goal: LearningGoalDTO,
+        knowledge_map: KnowledgeMapDTO,
+        *,
+        critic_recommendations: list[str] | None = None,
+        revision_attempt: int = 0,
+    ) -> CurriculumDTO:
+        recommendations = list(critic_recommendations or [])[:10]
         payload = CurriculumAgentInput(
             goal_text=goal.goal_text,
             learner_profile=goal.learner_profile,
             knowledge_map=knowledge_map,
             duration_weeks=goal.target_duration_weeks or demo.CURRICULUM.duration_weeks,
             hours_per_week=goal.hours_per_week,
-            critic_recommendations=[],
+            critic_recommendations=recommendations,
         )
         output = validate_agent_output(
             agent_name=self.agent.agent_name,
@@ -42,10 +50,16 @@ class CurriculumAgentService:
             weeks=output.weeks,
             target_outcomes=output.target_outcomes,
             assumptions=output.assumptions,
-            critic_revision_attempt=0,
+            critic_revision_attempt=revision_attempt,
+            revision_reason="critic-driven revision" if revision_attempt > 0 else None,
             created_at=demo.NOW,
             updated_at=demo.NOW,
         )
+        # A revision overwrites the existing curriculum in place (same ID, stable
+        # graph state) so the regenerated content actually replaces the draft the
+        # critic rejected. The first pass keeps its create-or-get idempotency.
+        if revision_attempt > 0:
+            return self.curricula.save(curriculum)
         return create_or_get(
             create=self.curricula.create,
             get=self.curricula.get_by_id,

@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import NotRequired, TypedDict, cast
 
 from app.schemas.base import TraceMetadata, WorkflowError, WorkflowWarning
-from app.schemas.enums import ExecutionMode, OrchestrationStatus
+from app.schemas.enums import CriticPassStatus, ExecutionMode, OrchestrationStatus
 from app.schemas.ids import (
     AdaptationId,
     AssessmentId,
@@ -40,6 +40,8 @@ class GraphState(TypedDict):
     quiz_attempt_id: NotRequired[AttemptId | None]
     adaptation_event_ids: NotRequired[list[AdaptationId]]
     critic_review_id: NotRequired[CriticReviewId | None]
+    critic_pass_status: NotRequired[CriticPassStatus | None]
+    critic_recommendations: NotRequired[list[str]]
     evaluation_report_id: NotRequired[EvaluationReportId | None]
     current_node: NotRequired[str | None]
     pending_user_action: NotRequired[str | None]
@@ -67,6 +69,8 @@ def build_initial_workflow_state(
         mode=mode,
         assessment_question_count=0,
         assessment_confidence=0.0,
+        critic_pass_status=None,
+        critic_recommendations=[],
         critic_revision_attempts=0,
         repeated_stuck_count=0,
         quiz_score=None,

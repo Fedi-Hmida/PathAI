@@ -1,14 +1,28 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from typing import Annotated
 
-from app.api.v1.dependencies import OrchestrationRunServiceDependency
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.api.v1.dependencies import ApiContainerDependency, OrchestrationRunServiceDependency
+from app.core.settings import Settings, get_settings
 from app.schemas.enums import OrchestrationRunStatus
 from app.schemas.ids import RunId
 from app.schemas.orchestration import OrchestrationRunDTO, OrchestrationStatusResponse
 from app.services.dashboard import RUN_STATUS_MAP
 
 router = APIRouter(prefix="/orchestration/runs", tags=["orchestration"])
+SettingsDependency = Annotated[Settings, Depends(get_settings)]
+
+
+@router.post("", response_model=OrchestrationRunDTO)
+def trigger_orchestration_run(
+    container: ApiContainerDependency,
+    settings: SettingsDependency,
+) -> OrchestrationRunDTO:
+    if not settings.enable_orchestration_run_route:
+        raise HTTPException(status_code=404, detail="orchestration run route is disabled")
+    return container.run_demo_pipeline()
 
 
 @router.get("/{run_id}", response_model=OrchestrationRunDTO)

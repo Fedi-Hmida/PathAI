@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     mongodb_uri: str = ""
     mongodb_database_name: str = "pathai"
     repository_backend: str = "fake"
+    enable_orchestration_run_route: bool = Field(
+        default=True,
+        validation_alias="PATHAI_ENABLE_ORCHESTRATION_RUN_ROUTE",
+    )
 
     @property
     def cors_origins(self) -> list[str]:

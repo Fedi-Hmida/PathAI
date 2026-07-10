@@ -14,6 +14,7 @@ from app.schemas.base import (
     WorkflowWarning,
 )
 from app.schemas.enums import (
+    CriticPassStatus,
     ExecutionMode,
     NodeResultStatus,
     OrchestrationRunStatus,
@@ -45,6 +46,8 @@ class WorkflowState(BaseSchema):
     quiz_attempt_id: AttemptId | None = None
     adaptation_event_ids: list[AdaptationId] = Field(default_factory=list)
     critic_review_id: CriticReviewId | None = None
+    critic_pass_status: CriticPassStatus | None = None
+    critic_recommendations: list[str] = Field(default_factory=list, max_length=10)
     evaluation_report_id: EvaluationReportId | None = None
     current_node: str | None = Field(default=None, max_length=120)
     status: OrchestrationStatus

@@ -24,6 +24,8 @@ class CriticAgentService:
         knowledge_map: KnowledgeMapDTO,
         curriculum: CurriculumDTO,
         attachments: list[ResourceAttachmentDTO],
+        *,
+        revision_attempt: int = 0,
     ) -> CriticReviewDTO:
         payload = CriticAgentInput(
             goal_text=goal.goal_text,
@@ -48,10 +50,14 @@ class CriticAgentService:
             strengths=output.strengths,
             issues=output.issues,
             revision_recommendations=output.revision_recommendations,
-            revision_attempt=0,
+            revision_attempt=revision_attempt,
             created_at=demo.NOW,
             updated_at=demo.NOW,
         )
+        # On a revision, re-review the regenerated curriculum by overwriting the
+        # prior review in place rather than returning the stale create-or-get hit.
+        if revision_attempt > 0:
+            return self.critics.save(review)
         return create_or_get(
             create=self.critics.create,
             get=self.critics.get_by_id,

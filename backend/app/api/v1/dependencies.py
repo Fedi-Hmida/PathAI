@@ -10,6 +10,7 @@ from fastapi import Depends
 from app.api.v1.responses import DemoLoadFixturesResponse
 from app.core.settings import get_settings
 from app.fixtures import canonical_demo as demo
+from app.orchestration.runner import run_straight_line_demo_from_container
 from app.repositories.factory import build_repository_set
 from app.repositories.protocols import (
     AdaptationRepository,
@@ -167,6 +168,9 @@ class ApiServiceContainer:
             evaluation_id=demo.EVALUATION_REPORT_ID,
             dashboard_payload=self.dashboard_service.get_by_run_id(demo.RUN_ID),
         )
+
+    def run_demo_pipeline(self) -> OrchestrationRunDTO:
+        return run_straight_line_demo_from_container(self).run
 
 
 _api_container = ApiServiceContainer()

@@ -20,7 +20,8 @@ from app.orchestration.events import (
 )
 from app.orchestration.state import GraphState, increment_node_attempt, merge_state
 from app.repositories.errors import DuplicateRecordError, NotFoundError
-from app.schemas.enums import OrchestrationRunStatus, OrchestrationStatus
+from app.schemas.base import WorkflowWarning
+from app.schemas.enums import CriticPassStatus, OrchestrationRunStatus, OrchestrationStatus
 from app.schemas.orchestration import OrchestrationRunDTO
 from app.services import (
     AdaptationService,
@@ -249,8 +250,22 @@ def load_curriculum(state: GraphState, context: OrchestrationContext) -> GraphSt
     knowledge_map = context.knowledge_maps.get_by_id(
         state.get("knowledge_map_id") or demo.KNOWLEDGE_MAP_ID,
     )
-    curriculum = context.agent_services.curriculum.build(goal, knowledge_map)
-    return merge_state(state, curriculum_id=curriculum.curriculum_id)
+    # The wrapper increments node_attempts before this body runs, so the Nth visit
+    # to load_curriculum is revision N-1. Deriving the count from visits (not from
+    # whether recommendations happen to be non-empty) makes the loop terminate even
+    # when the critic asks to revise without naming specific recommendations.
+    revision_attempt = max(0, state.get("node_attempts", {}).get("load_curriculum", 1) - 1)
+    curriculum = context.agent_services.curriculum.build(
+        goal,
+        knowledge_map,
+        critic_recommendations=state.get("critic_recommendations", []),
+        revision_attempt=revision_attempt,
+    )
+    return merge_state(
+        state,
+        curriculum_id=curriculum.curriculum_id,
+        critic_revision_attempts=revision_attempt,
+    )
 
 
 def load_resources(state: GraphState, context: OrchestrationContext) -> GraphState:
@@ -269,8 +284,19 @@ def load_critic_review(state: GraphState, context: OrchestrationContext) -> Grap
     )
     curriculum = context.curricula.get_by_id(state.get("curriculum_id") or demo.CURRICULUM_ID)
     attachments = context.resources.list_attachments_by_curriculum_id(curriculum.curriculum_id)
-    critic = context.agent_services.critic.review(goal, knowledge_map, curriculum, attachments)
-    return merge_state(state, critic_review_id=critic.critic_review_id)
+    critic = context.agent_services.critic.review(
+        goal,
+        knowledge_map,
+        curriculum,
+        attachments,
+        revision_attempt=state.get("critic_revision_attempts", 0),
+    )
+    return merge_state(
+        state,
+        critic_review_id=critic.critic_review_id,
+        critic_pass_status=critic.pass_status,
+        critic_recommendations=list(critic.revision_recommendations[:10]),
+    )
 
 
 def load_progress(state: GraphState, context: OrchestrationContext) -> GraphState:
@@ -349,13 +375,33 @@ def prepare_dashboard_payload(state: GraphState, context: OrchestrationContext) 
     return merge_state(state)
 
 
+_REVISION_LIMIT_WARNING_CODE = "curriculum_revision_limit_reached"
+
+
 def complete_run(state: GraphState, _context: OrchestrationContext) -> GraphState:
     now = _now()
+    warnings = list(state.get("warnings", []))
+    # Reaching completion with an unresolved critic verdict can only mean the
+    # revision cap was hit (the router would otherwise have looped again). The
+    # last curriculum is accepted, but the run is flagged so the outcome stays
+    # distinguishable from a critic-approved run. The message is generic — it
+    # carries no critic recommendation or curriculum content.
+    if state.get("critic_pass_status") in (CriticPassStatus.REVISE, CriticPassStatus.FAILED):
+        warnings.append(
+            WorkflowWarning(
+                warning_code=_REVISION_LIMIT_WARNING_CODE,
+                message=(
+                    "Curriculum accepted after reaching the revision limit "
+                    "without critic approval."
+                ),
+            ),
+        )
     return merge_state(
         state,
         status=OrchestrationStatus.COMPLETED,
         current_node="complete_run",
         completed_at=now,
+        warnings=warnings,
     )
 
 
@@ -369,13 +415,20 @@ def _mark_node_completed(
     completed_nodes = [*run.completed_nodes]
     if node_name not in completed_nodes:
         completed_nodes.append(node_name)
+    warnings = [
+        WorkflowWarning.model_validate(warning) for warning in next_state.get("warnings", [])
+    ]
+    run_status = _run_status_for_state(next_state["status"])
+    if run_status == OrchestrationRunStatus.COMPLETED and warnings:
+        run_status = OrchestrationRunStatus.COMPLETED_WITH_WARNINGS
     saved_run = run.model_copy(
         update={
-            "status": _run_status_for_state(next_state["status"]),
+            "status": run_status,
             "current_node": node_name,
             "completed_nodes": completed_nodes,
             "artifact_ids": _artifact_ids(next_state),
             "completed_at": next_state.get("completed_at"),
+            "warnings": warnings,
             "updated_at": next_state["updated_at"],
         },
         deep=True,
