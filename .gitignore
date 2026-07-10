@@ -54,6 +54,9 @@ chroma_db/
 # Local phase working reports
 reports/phases/
 
+# Local Claude Code instructions (not shared via git)
+CLAUDE.md
+
 # OS and editor files
 .DS_Store
 Thumbs.db
