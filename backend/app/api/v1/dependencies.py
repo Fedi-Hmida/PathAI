@@ -8,19 +8,21 @@ from uuid import uuid4
 from fastapi import Depends
 
 from app.api.v1.responses import DemoLoadFixturesResponse
+from app.core.settings import get_settings
 from app.fixtures import canonical_demo as demo
-from app.repositories.fakes import (
-    FakeAdaptationRepository,
-    FakeAssessmentRepository,
-    FakeCriticReviewRepository,
-    FakeCurriculumRepository,
-    FakeEvaluationRepository,
-    FakeGoalRepository,
-    FakeKnowledgeMapRepository,
-    FakeOrchestrationRunRepository,
-    FakeProgressRepository,
-    FakeQuizRepository,
-    FakeResourceRepository,
+from app.repositories.factory import build_repository_set
+from app.repositories.protocols import (
+    AdaptationRepository,
+    AssessmentRepository,
+    CriticReviewRepository,
+    CurriculumRepository,
+    EvaluationRepository,
+    GoalRepository,
+    KnowledgeMapRepository,
+    OrchestrationRunRepository,
+    ProgressRepository,
+    QuizRepository,
+    ResourceRepository,
 )
 from app.schemas.enums import (
     DifficultyLevel,
@@ -49,31 +51,17 @@ from app.services import (
 
 @dataclass(slots=True)
 class ApiServiceContainer:
-    goal_repository: FakeGoalRepository = field(default_factory=FakeGoalRepository)
-    assessment_repository: FakeAssessmentRepository = field(
-        default_factory=FakeAssessmentRepository,
-    )
-    knowledge_map_repository: FakeKnowledgeMapRepository = field(
-        default_factory=FakeKnowledgeMapRepository,
-    )
-    curriculum_repository: FakeCurriculumRepository = field(
-        default_factory=FakeCurriculumRepository,
-    )
-    resource_repository: FakeResourceRepository = field(default_factory=FakeResourceRepository)
-    progress_repository: FakeProgressRepository = field(default_factory=FakeProgressRepository)
-    quiz_repository: FakeQuizRepository = field(default_factory=FakeQuizRepository)
-    adaptation_repository: FakeAdaptationRepository = field(
-        default_factory=FakeAdaptationRepository,
-    )
-    critic_repository: FakeCriticReviewRepository = field(
-        default_factory=FakeCriticReviewRepository,
-    )
-    evaluation_repository: FakeEvaluationRepository = field(
-        default_factory=FakeEvaluationRepository,
-    )
-    orchestration_run_repository: FakeOrchestrationRunRepository = field(
-        default_factory=FakeOrchestrationRunRepository,
-    )
+    goal_repository: GoalRepository = field(init=False)
+    assessment_repository: AssessmentRepository = field(init=False)
+    knowledge_map_repository: KnowledgeMapRepository = field(init=False)
+    curriculum_repository: CurriculumRepository = field(init=False)
+    resource_repository: ResourceRepository = field(init=False)
+    progress_repository: ProgressRepository = field(init=False)
+    quiz_repository: QuizRepository = field(init=False)
+    adaptation_repository: AdaptationRepository = field(init=False)
+    critic_repository: CriticReviewRepository = field(init=False)
+    evaluation_repository: EvaluationRepository = field(init=False)
+    orchestration_run_repository: OrchestrationRunRepository = field(init=False)
     goal_service: GoalService = field(init=False)
     assessment_service: AssessmentService = field(init=False)
     knowledge_map_service: KnowledgeMapService = field(init=False)
@@ -89,6 +77,18 @@ class ApiServiceContainer:
     reporting_service: ReportingService = field(init=False)
 
     def __post_init__(self) -> None:
+        repositories = build_repository_set(get_settings())
+        self.goal_repository = repositories.goal
+        self.assessment_repository = repositories.assessment
+        self.knowledge_map_repository = repositories.knowledge_map
+        self.curriculum_repository = repositories.curriculum
+        self.resource_repository = repositories.resource
+        self.progress_repository = repositories.progress
+        self.quiz_repository = repositories.quiz
+        self.adaptation_repository = repositories.adaptation
+        self.critic_repository = repositories.critic
+        self.evaluation_repository = repositories.evaluation
+        self.orchestration_run_repository = repositories.orchestration_run
         self.goal_service = GoalService(self.goal_repository)
         self.assessment_service = AssessmentService(self.assessment_repository)
         self.knowledge_map_service = KnowledgeMapService(self.knowledge_map_repository)

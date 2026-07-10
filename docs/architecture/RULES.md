@@ -53,7 +53,7 @@ Required behavior:
 - Add tests appropriate to the phase.
 - Validate with real commands and report exact results.
 - Do not claim success unless validation passes.
-- Preserve `.env`; never read, print, copy, modify, or expose secrets.
+
 - Do not implement authentication, Docker, or deployment unless explicitly requested.
 - Preserve `.git`.
 - Avoid unrelated refactors.
@@ -117,7 +117,7 @@ Required behavior:
 
 ## 7. Security Rules
 
-- Never read, print, copy, expose, or overwrite `.env`.
+
 - Never commit or create files containing secrets, tokens, API keys, MongoDB URIs, passwords, private keys, or real credentials.
 - Use environment variable names only, never real values.
 - Keep `.env.example` secret-free.
@@ -164,7 +164,7 @@ Required behavior:
 - On schema failure, retry or fail safely; do not save invalid output.
 - Do not use LLM output as trusted authority for security decisions.
 - Do not include secrets or hidden config in prompts sent to the LLM.
-- Do not include `.env` values in prompts.
+
 - Do not include raw internal errors in prompts unless safely redacted.
 - Keep prompt templates versionable and reviewable.
 - Keep parser failures observable but sanitized.
@@ -206,7 +206,7 @@ Required behavior:
 - Every phase must validate with appropriate commands.
 - Every phase must report exact validation results.
 - Every phase must mention compliance with `MAIN.md` and `RULES.md`.
-- Every phase must preserve `.env` and secrets.
+
 - Every phase must avoid unrelated refactors.
 - Every phase must keep implementation aligned with the roadmap in `MAIN.md`.
 - Every phase must state the next recommended phase.

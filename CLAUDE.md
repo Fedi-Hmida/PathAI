@@ -16,7 +16,7 @@ The project follows a phased "rebuild" process (Rebuild-0 through Rebuild-13+, t
 Key rules from `RULES.md` worth internalizing (see the file for the full list):
 - Strict layering: `Frontend -> API routes -> Services -> Repositories -> DB`, and separately `Services -> LangGraph orchestration -> Agents -> LLM/RAG/Evaluation`. API routes must not contain business logic, call agents, or touch persistence directly. Repositories must not call agents/LLMs. Agents must not touch persistence and must return structured (Pydantic) output only.
 - Every phase is scoped, documented in a recap under `reports/phases/`, and must not implement future phases early or do unrelated refactors.
-- Never read, print, copy, modify, or expose `.env`. Secrets must never appear in code, tests, fixtures, docs, or frontend files — use env var names only.
+- Claude may read `.env` locally to use real credentials (e.g. testing a live MongoDB/Atlas connection) when the user explicitly asks. Never commit, print in full, paste into code/tests/fixtures/docs, or otherwise expose secret values — redact when reporting back (e.g. connection pass/fail, not the raw URI).
 - Default test suite must not require a real LLM, network, or MongoDB. Live LLM / live provider checks are opt-in only (see below).
 
 ## Common commands

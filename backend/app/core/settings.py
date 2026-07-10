@@ -50,6 +50,9 @@ class Settings(BaseSettings):
         default=False,
         validation_alias="PATHAI_ENABLE_LLM_CURRICULUM_AGENT",
     )
+    mongodb_uri: str = ""
+    mongodb_database_name: str = "pathai"
+    repository_backend: str = "fake"
 
     @property
     def cors_origins(self) -> list[str]:

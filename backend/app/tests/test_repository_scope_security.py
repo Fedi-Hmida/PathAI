@@ -13,15 +13,18 @@ FORBIDDEN_IMPORT_PREFIXES = (
     "app.api",
     "app.llm",
     "app.orchestration",
-    "beanie",
     "fastapi",
     "httpx",
     "langgraph",
-    "motor",
-    "pymongo",
     "requests",
     "urllib",
 )
+MONGO_DRIVER_PREFIXES = (
+    "beanie",
+    "motor",
+    "pymongo",
+)
+MONGO_REPOSITORY_DIR = APP_ROOT / "repositories" / "mongo"
 
 
 def test_repository_and_service_layers_do_not_import_forbidden_runtime_boundaries() -> None:
@@ -35,6 +38,23 @@ def test_repository_and_service_layers_do_not_import_forbidden_runtime_boundarie
                     _collect_forbidden_import(path, alias.name, violations)
             elif isinstance(node, ast.ImportFrom) and node.module is not None:
                 _collect_forbidden_import(path, node.module, violations)
+
+    assert violations == []
+
+
+def test_only_mongo_repository_files_import_a_mongo_driver() -> None:
+    violations: list[str] = []
+
+    for path in _python_files():
+        if _is_mongo_repository_file(path):
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    _collect_forbidden_module(path, alias.name, MONGO_DRIVER_PREFIXES, violations)
+            elif isinstance(node, ast.ImportFrom) and node.module is not None:
+                _collect_forbidden_module(path, node.module, MONGO_DRIVER_PREFIXES, violations)
 
     assert violations == []
 
@@ -57,6 +77,19 @@ def _python_files() -> list[Path]:
 
 
 def _collect_forbidden_import(path: Path, module: str, violations: list[str]) -> None:
-    if module.startswith(FORBIDDEN_IMPORT_PREFIXES):
+    _collect_forbidden_module(path, module, FORBIDDEN_IMPORT_PREFIXES, violations)
+
+
+def _collect_forbidden_module(
+    path: Path,
+    module: str,
+    prefixes: tuple[str, ...],
+    violations: list[str],
+) -> None:
+    if module.startswith(prefixes):
         relative_path = path.relative_to(APP_ROOT)
         violations.append(f"{relative_path}: {module}")
+
+
+def _is_mongo_repository_file(path: Path) -> bool:
+    return MONGO_REPOSITORY_DIR in path.parents

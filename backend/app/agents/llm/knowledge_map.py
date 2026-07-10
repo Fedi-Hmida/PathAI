@@ -113,6 +113,11 @@ def _build_schema_focused_prompt(payload: KnowledgeMapAgentInput) -> str:
         "weak_concepts, missing_concepts, confidence, summary. "
         "Each concept must include concept_id, label, mastery_score, classification, "
         "evidence, prerequisites, recommended_action, and confidence. "
+        "The evidence and prerequisites fields must each be a JSON array of short strings "
+        "(never a single string, even if there is only one item). "
+        "strong_concepts, developing_concepts, weak_concepts, and missing_concepts must "
+        "each be a JSON array containing only the concept_id string values from concepts "
+        "above, grouped by classification — never full concept objects. "
         "Use only classifications supported by the schema."
     )
 
