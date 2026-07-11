@@ -207,7 +207,11 @@ export default function DashboardPage() {
       </div>
 
       <div className="flex flex-wrap items-stretch gap-5">
-        <KnowledgeMapCard knowledgeMapSummary={dashboard.knowledge_map_summary} />
+        <KnowledgeMapCard
+          knowledgeMapSummary={dashboard.knowledge_map_summary}
+          assessmentId={dashboard.navigation_summary.artifact_ids.assessment_id ?? null}
+          knowledgeMapId={dashboard.navigation_summary.artifact_ids.knowledge_map_id ?? null}
+        />
         <NextActionCard progressSummary={dashboard.progress_summary} />
       </div>
 

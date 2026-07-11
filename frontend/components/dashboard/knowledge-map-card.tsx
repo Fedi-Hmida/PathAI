@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { KnowledgeMapSummary } from "@/lib/types/dashboard";
 
@@ -32,9 +33,15 @@ function ConceptChip({ conceptId, tone }: { conceptId: string; tone: "success" |
 
 type KnowledgeMapCardProps = {
   knowledgeMapSummary: KnowledgeMapSummary | null;
+  assessmentId?: string | null;
+  knowledgeMapId?: string | null;
 };
 
-export function KnowledgeMapCard({ knowledgeMapSummary }: KnowledgeMapCardProps) {
+export function KnowledgeMapCard({
+  knowledgeMapSummary,
+  assessmentId = null,
+  knowledgeMapId = null,
+}: KnowledgeMapCardProps) {
   return (
     <Card className="flex-[2_1_520px] py-6">
       <CardHeader>
@@ -42,6 +49,20 @@ export function KnowledgeMapCard({ knowledgeMapSummary }: KnowledgeMapCardProps)
           Knowledge map
         </span>
         <CardTitle className="font-goal text-lg font-medium">Where you stand</CardTitle>
+        {assessmentId !== null || knowledgeMapId !== null ? (
+          <CardAction className="flex flex-col items-end gap-1">
+            {knowledgeMapId !== null ? (
+              <Link href={`/knowledge-map/${knowledgeMapId}`} className="text-brand hover:underline text-[13px] font-medium">
+                View full map
+              </Link>
+            ) : null}
+            {assessmentId !== null ? (
+              <Link href={`/assessment/${assessmentId}`} className="text-brand hover:underline text-[13px] font-medium">
+                View assessment
+              </Link>
+            ) : null}
+          </CardAction>
+        ) : null}
       </CardHeader>
       <CardContent>
         {knowledgeMapSummary === null ? (
