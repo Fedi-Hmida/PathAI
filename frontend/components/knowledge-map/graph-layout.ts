@@ -1,8 +1,8 @@
 import type { ConceptMasteryDTO } from "@/lib/types/knowledge-map";
 
-const NODE_SPACING_X = 170;
-const LAYER_HEIGHT = 170;
-const CANVAS_PADDING = 70;
+const LAYER_SPACING_X = 210;
+const NODE_SPACING_Y = 150;
+const CANVAS_PADDING = 80;
 
 export type GraphNode = {
   conceptId: string;
@@ -60,6 +60,10 @@ export function computeGraphLayout(concepts: ConceptMasteryDTO[]): GraphLayout {
   const conceptById = new Map(concepts.map((concept) => [concept.concept_id, concept]));
   const layers = computeLayers(concepts);
 
+  // Flow is left → right: each prerequisite depth becomes a column, and the
+  // concepts within a column are stacked vertically. Roots (no prerequisites)
+  // sit on the left, the most-dependent concepts on the right — matching the
+  // approved knowledge-map mockup.
   const nodesByLayer = new Map<number, string[]>();
   for (const concept of concepts) {
     const layer = layers.get(concept.concept_id) ?? 0;
@@ -70,17 +74,17 @@ export function computeGraphLayout(concepts: ConceptMasteryDTO[]): GraphLayout {
 
   const maxLayer = Math.max(0, ...nodesByLayer.keys());
   const maxNodesInLayer = Math.max(1, ...Array.from(nodesByLayer.values(), (ids) => ids.length));
-  const width = maxNodesInLayer * NODE_SPACING_X + CANVAS_PADDING * 2;
-  const height = (maxLayer + 1) * LAYER_HEIGHT + CANVAS_PADDING * 2;
+  const width = (maxLayer + 1) * LAYER_SPACING_X + CANVAS_PADDING * 2;
+  const height = maxNodesInLayer * NODE_SPACING_Y + CANVAS_PADDING * 2;
 
   const positions = new Map<string, { x: number; y: number }>();
   for (const [layer, ids] of nodesByLayer) {
-    const rowWidth = ids.length * NODE_SPACING_X;
-    const startX = (width - rowWidth) / 2 + NODE_SPACING_X / 2;
+    const columnHeight = ids.length * NODE_SPACING_Y;
+    const startY = (height - columnHeight) / 2 + NODE_SPACING_Y / 2;
     ids.forEach((conceptId, index) => {
       positions.set(conceptId, {
-        x: startX + index * NODE_SPACING_X,
-        y: CANVAS_PADDING + layer * LAYER_HEIGHT + LAYER_HEIGHT / 2,
+        x: CANVAS_PADDING + layer * LAYER_SPACING_X + LAYER_SPACING_X / 2,
+        y: startY + index * NODE_SPACING_Y,
       });
     });
   }
@@ -105,4 +109,12 @@ export function computeGraphLayout(concepts: ConceptMasteryDTO[]): GraphLayout {
   }
 
   return { nodes, edges, width, height };
+}
+
+// Smooth left→right connector between two node centers: a cubic bézier whose
+// control points are offset horizontally, giving the gentle S-curve from the
+// mockup instead of a straight segment.
+export function curvedEdgePath(x1: number, y1: number, x2: number, y2: number): string {
+  const dx = Math.max(Math.abs(x2 - x1) * 0.5, 40);
+  return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
 }

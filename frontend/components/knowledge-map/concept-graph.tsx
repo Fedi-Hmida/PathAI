@@ -4,8 +4,8 @@ import * as React from "react";
 import { Minus, Plus, RotateCcw, Search } from "lucide-react";
 
 import { ConceptNode } from "@/components/knowledge-map/concept-node";
-import { ClassificationLegend } from "@/components/knowledge-map/classification-legend";
-import { computeGraphLayout } from "@/components/knowledge-map/graph-layout";
+import { CLASSIFICATION_CONFIG, ClassificationLegend } from "@/components/knowledge-map/classification-legend";
+import { computeGraphLayout, curvedEdgePath } from "@/components/knowledge-map/graph-layout";
 import { cn } from "@/lib/utils";
 import type { ConceptClassification, ConceptMasteryDTO } from "@/lib/types/knowledge-map";
 
@@ -25,6 +25,10 @@ export function ConceptGraph({ concepts, selectedConceptId, onSelectConcept }: C
   const nodesByConceptId = React.useMemo(
     () => new Map(layout.nodes.map((node) => [node.conceptId, node])),
     [layout.nodes]
+  );
+  const conceptsById = React.useMemo(
+    () => new Map(concepts.map((concept) => [concept.concept_id, concept])),
+    [concepts]
   );
 
   const [pan, setPan] = React.useState({ x: 0, y: 0 });
@@ -55,6 +59,33 @@ export function ConceptGraph({ concepts, selectedConceptId, onSelectConcept }: C
     canvas.addEventListener("wheel", onWheel, { passive: false });
     return () => canvas.removeEventListener("wheel", onWheel);
   }, []);
+
+  // Fit the whole graph inside the visible canvas: scale it down (or up, to a
+  // cap) so the full DAG is framed with a little margin, then centre it. This
+  // is what keeps a small map from floating as tiny nodes in a big void.
+  const fitView = React.useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || layout.width === 0 || layout.height === 0) {
+      return;
+    }
+    const margin = 32;
+    const availableWidth = canvas.clientWidth - margin * 2;
+    const availableHeight = canvas.clientHeight - margin * 2;
+    const nextScale = Math.min(
+      MAX_SCALE,
+      Math.max(MIN_SCALE, Math.min(availableWidth / layout.width, availableHeight / layout.height))
+    );
+    setScale(nextScale);
+    setPan({
+      x: (canvas.clientWidth - layout.width * nextScale) / 2,
+      y: (canvas.clientHeight - layout.height * nextScale) / 2,
+    });
+  }, [layout.width, layout.height]);
+
+  // Frame on first paint and whenever the layout changes.
+  React.useLayoutEffect(() => {
+    fitView();
+  }, [fitView]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     // Don't start a pan (and don't steal pointer capture) when the
@@ -88,8 +119,7 @@ export function ConceptGraph({ concepts, selectedConceptId, onSelectConcept }: C
   };
 
   const handleReset = () => {
-    setPan({ x: 0, y: 0 });
-    setScale(1);
+    fitView();
   };
 
   const toggleClassification = (classification: ConceptClassification) => {
@@ -196,15 +226,21 @@ export function ConceptGraph({ concepts, selectedConceptId, onSelectConcept }: C
               if (!from || !to) {
                 return null;
               }
+              // Colour each connector by its source (prerequisite) concept's
+              // classification, so the flow reads as "mastery feeding forward"
+              // — matching the mockup's tinted edges.
+              const source = conceptsById.get(edge.fromConceptId);
+              const stroke = source
+                ? CLASSIFICATION_CONFIG[source.classification].ringColor
+                : "var(--color-border)";
               return (
-                <line
+                <path
                   key={`${edge.fromConceptId}-${edge.toConceptId}`}
-                  x1={from.x}
-                  y1={from.y}
-                  x2={to.x}
-                  y2={to.y}
-                  stroke="var(--color-border)"
+                  d={curvedEdgePath(from.x, from.y, to.x, to.y)}
+                  fill="none"
+                  stroke={stroke}
                   strokeWidth={2}
+                  strokeOpacity={0.55}
                 />
               );
             })}

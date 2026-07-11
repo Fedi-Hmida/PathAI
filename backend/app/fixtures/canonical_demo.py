@@ -254,6 +254,7 @@ KNOWLEDGE_MAP = KnowledgeMapDTO(
             mastery_score=0.28,
             classification=ConceptClassification.WEAK,
             evidence=["Needs recall and precision metric practice."],
+            prerequisites=["vector_search", "chunking"],
             recommended_action="Add retrieval metrics practice before project integration.",
         ),
         ConceptMasteryDTO(
@@ -262,6 +263,7 @@ KNOWLEDGE_MAP = KnowledgeMapDTO(
             mastery_score=0.32,
             classification=ConceptClassification.WEAK,
             evidence=["Needs support with similarity search behavior."],
+            prerequisites=["rag_fundamentals"],
         ),
         ConceptMasteryDTO(
             concept_id="chunking",
@@ -269,6 +271,7 @@ KNOWLEDGE_MAP = KnowledgeMapDTO(
             mastery_score=0.48,
             classification=ConceptClassification.DEVELOPING,
             evidence=["Recognizes chunk size matters but needs practical heuristics."],
+            prerequisites=["rag_fundamentals"],
         ),
     ],
     strong_concepts=["rag_fundamentals", "api_basics"],

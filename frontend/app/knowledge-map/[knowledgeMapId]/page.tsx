@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
 
 import { ConceptDetailPanel } from "@/components/knowledge-map/concept-detail-panel";
 import { ConceptGraph } from "@/components/knowledge-map/concept-graph";
@@ -10,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/client";
+import { getGoal } from "@/lib/api/goal";
 import { getKnowledgeMap } from "@/lib/api/knowledge-map";
 import { cn } from "@/lib/utils";
 import type { KnowledgeMapDTO, KnowledgeMapStatus } from "@/lib/types/knowledge-map";
@@ -47,10 +49,12 @@ function KnowledgeMapView() {
 
   const [loadedKnowledgeMapId, setLoadedKnowledgeMapId] = React.useState(knowledgeMapId);
   const [state, setState] = React.useState<KnowledgeMapLoadState>({ kind: "loading" });
+  const [goalText, setGoalText] = React.useState<string | null>(null);
 
   if (knowledgeMapId !== loadedKnowledgeMapId) {
     setLoadedKnowledgeMapId(knowledgeMapId);
     setState({ kind: "loading" });
+    setGoalText(null);
   }
 
   React.useEffect(() => {
@@ -86,6 +90,31 @@ function KnowledgeMapView() {
       cancelled = true;
     };
   }, [knowledgeMapId]);
+
+  // The knowledge map carries the goal_id but not the goal text; fetch it for
+  // the header title once the map has loaded, degrading to nothing (title
+  // omitted) if the goal can't be fetched.
+  const goalId = state.kind === "ready" ? state.knowledgeMap.goal_id : null;
+  React.useEffect(() => {
+    if (goalId === null) {
+      return;
+    }
+    let cancelled = false;
+    getGoal(goalId)
+      .then((goal) => {
+        if (!cancelled) {
+          setGoalText(goal.goal_text);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setGoalText(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [goalId]);
 
   const navigateToConcept = React.useCallback(
     (conceptId: string) => {
@@ -129,14 +158,29 @@ function KnowledgeMapView() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-wrap items-start justify-between gap-6">
-        <div>
-          <span className="text-tertiary text-[11px] font-semibold tracking-widest uppercase">
-            Knowledge map
-          </span>
-          <h1 className="font-goal text-foreground mt-1 text-[30px] leading-tight font-medium">
-            Concept Map
-          </h1>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <Link
+            href={`/dashboard/${knowledgeMap.run_id}`}
+            aria-label="Back to dashboard"
+            className="border-border text-muted-foreground hover:bg-surface-sunken hover:text-foreground mt-0.5 flex size-9 flex-none items-center justify-center rounded-full border"
+          >
+            <ArrowLeft className="size-4" />
+          </Link>
+          <div className="min-w-0">
+            <span className="text-tertiary text-[11px] font-semibold tracking-widest uppercase">
+              Knowledge map
+            </span>
+            {goalText ? (
+              <h1 className="font-goal text-foreground mt-0.5 text-2xl leading-tight font-medium italic">
+                {goalText}
+              </h1>
+            ) : (
+              <h1 className="font-goal text-foreground mt-0.5 text-2xl leading-tight font-medium">
+                Concept Map
+              </h1>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-tertiary font-mono text-[13px]">
@@ -149,7 +193,7 @@ function KnowledgeMapView() {
       </div>
 
       {knowledgeMap.summary ? (
-        <p className="text-muted-foreground max-w-3xl text-sm leading-relaxed">
+        <p className="font-goal text-foreground max-w-3xl text-xl leading-relaxed">
           {knowledgeMap.summary}
         </p>
       ) : null}
