@@ -10,7 +10,9 @@ from app.repositories.fakes.knowledge_map import FakeKnowledgeMapRepository
 from app.repositories.fakes.orchestration import FakeOrchestrationRunRepository
 from app.repositories.fakes.progress import FakeProgressRepository
 from app.repositories.fakes.quiz import FakeQuizRepository
+from app.repositories.fakes.refresh_token import FakeRefreshTokenRepository
 from app.repositories.fakes.resource import FakeResourceRepository
+from app.repositories.fakes.user import FakeUserRepository
 
 __all__ = [
     "FakeAdaptationRepository",
@@ -23,5 +25,7 @@ __all__ = [
     "FakeOrchestrationRunRepository",
     "FakeProgressRepository",
     "FakeQuizRepository",
+    "FakeRefreshTokenRepository",
     "FakeResourceRepository",
+    "FakeUserRepository",
 ]

@@ -15,7 +15,9 @@ from app.repositories.fakes import (
     FakeOrchestrationRunRepository,
     FakeProgressRepository,
     FakeQuizRepository,
+    FakeRefreshTokenRepository,
     FakeResourceRepository,
+    FakeUserRepository,
 )
 from app.repositories.mongo import (
     MongoAdaptationRepository,
@@ -28,7 +30,9 @@ from app.repositories.mongo import (
     MongoOrchestrationRunRepository,
     MongoProgressRepository,
     MongoQuizRepository,
+    MongoRefreshTokenRepository,
     MongoResourceRepository,
+    MongoUserRepository,
 )
 from app.repositories.protocols import (
     AdaptationRepository,
@@ -41,7 +45,9 @@ from app.repositories.protocols import (
     OrchestrationRunRepository,
     ProgressRepository,
     QuizRepository,
+    RefreshTokenRepository,
     ResourceRepository,
+    UserRepository,
 )
 
 _FAKE_BACKEND = "fake"
@@ -65,6 +71,8 @@ class RepositorySet:
     critic: CriticReviewRepository
     evaluation: EvaluationRepository
     orchestration_run: OrchestrationRunRepository
+    user: UserRepository
+    refresh_token: RefreshTokenRepository
 
 
 def build_repository_set(settings: Settings) -> RepositorySet:
@@ -90,6 +98,8 @@ def _build_fake_repository_set() -> RepositorySet:
         critic=FakeCriticReviewRepository(),
         evaluation=FakeEvaluationRepository(),
         orchestration_run=FakeOrchestrationRunRepository(),
+        user=FakeUserRepository(),
+        refresh_token=FakeRefreshTokenRepository(),
     )
 
 
@@ -114,4 +124,6 @@ def _build_mongo_repository_set(settings: Settings) -> RepositorySet:
         critic=MongoCriticReviewRepository(database["critic_reviews"]),
         evaluation=MongoEvaluationRepository(database["evaluation_reports"]),
         orchestration_run=MongoOrchestrationRunRepository(database["orchestration_runs"]),
+        user=MongoUserRepository(database["users"]),
+        refresh_token=MongoRefreshTokenRepository(database["refresh_tokens"]),
     )

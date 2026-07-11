@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.services.adaptation import AdaptationService
 from app.services.assessment import AssessmentService
+from app.services.auth import AuthService, AuthTokenConfig
 from app.services.critic import CriticService
 from app.services.curriculum import CurriculumService
 from app.services.dashboard import DashboardService
@@ -17,6 +18,8 @@ from app.services.resource import ResourceService
 __all__ = [
     "AdaptationService",
     "AssessmentService",
+    "AuthService",
+    "AuthTokenConfig",
     "CriticService",
     "CurriculumService",
     "DashboardService",

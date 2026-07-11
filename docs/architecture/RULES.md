@@ -136,7 +136,7 @@ Required behavior:
 - Keep agents persistence-free; services validate and decide what is saved.
 - Prevent duplicate side effects with idempotency keys where needed.
 - For local no-auth mode, make clear it is development/demo mode, not production security.
-- Do not implement authentication, JWT, password hashing, sessions, or protected routes unless the phase explicitly requests it.
+- Do not implement authentication, JWT, password hashing, sessions, or protected routes unless the phase explicitly requests it. **Exception approved and implemented, Rebuild-25:** gate-only JWT authentication (register/login/refresh/logout, behind `PATHAI_ENABLE_AUTH`, default off). See `docs/decisions/0001-jwt-authentication-gate-only.md`. Per-user data ownership and RBAC remain excluded.
 
 ## 8. Backend Security Rules
 
@@ -249,11 +249,18 @@ Recaps must be honest. They must not claim validation or implementation that did
 
 The following are excluded until explicitly requested:
 
-- authentication.
-- JWT/login/register.
-- password hashing.
-- user sessions.
-- protected routes.
+- authentication. **Partially lifted, Rebuild-25:** gate-only JWT auth
+  (users, register/login/refresh/logout, protected-route capability) is
+  implemented behind `PATHAI_ENABLE_AUTH` (default off) per
+  `docs/decisions/0001-jwt-authentication-gate-only.md`. Per-user data
+  ownership and role-based access control remain excluded below.
+- JWT/login/register. — see exception above.
+- password hashing. — see exception above.
+- user sessions. — see exception above.
+- protected routes. — the guard mechanism (`require_user`/`RequireAuth`)
+  exists per the exception above; existing product routes (goals, runs,
+  etc.) are not yet gated behind it — that is per-user ownership, still
+  excluded below.
 - Docker.
 - deployment.
 - CI/CD.

@@ -10,7 +10,9 @@ from app.repositories.protocols.knowledge_map import KnowledgeMapRepository
 from app.repositories.protocols.orchestration import OrchestrationRunRepository
 from app.repositories.protocols.progress import ProgressRepository
 from app.repositories.protocols.quiz import QuizRepository
+from app.repositories.protocols.refresh_token import RefreshTokenRepository
 from app.repositories.protocols.resource import ResourceRepository
+from app.repositories.protocols.user import UserRepository
 
 __all__ = [
     "AdaptationRepository",
@@ -23,5 +25,7 @@ __all__ = [
     "OrchestrationRunRepository",
     "ProgressRepository",
     "QuizRepository",
+    "RefreshTokenRepository",
     "ResourceRepository",
+    "UserRepository",
 ]

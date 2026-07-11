@@ -57,6 +57,17 @@ class Settings(BaseSettings):
         default=True,
         validation_alias="PATHAI_ENABLE_ORCHESTRATION_RUN_ROUTE",
     )
+    enable_auth: bool = Field(
+        default=False,
+        validation_alias="PATHAI_ENABLE_AUTH",
+    )
+    jwt_secret_key: SecretStr | None = None
+    jwt_algorithm: str = "HS256"
+    access_token_ttl_seconds: int = Field(default=900, ge=60, le=3600)
+    refresh_token_ttl_seconds: int = Field(default=1_209_600, ge=300, le=7_776_000)
+    refresh_cookie_name: str = "pathai_refresh"
+    refresh_cookie_secure: bool = True
+    refresh_cookie_samesite: str = "lax"
 
     @property
     def cors_origins(self) -> list[str]:
@@ -84,6 +95,14 @@ class Settings(BaseSettings):
     def effective_llm_api_key(self) -> SecretStr | None:
         return self.llm_api_key or self.openai_api_key or self.university_llm_api_key
 
+    @property
+    def auth_configured(self) -> bool:
+        """True when auth is enabled and a signing secret is present.
+
+        Never exposes the secret value itself; only whether one is set.
+        """
+        return self.enable_auth and self.jwt_secret_key is not None
+
     def readiness_flags(self) -> dict[str, Any]:
         return {
             "settings_loaded": True,
@@ -91,6 +110,8 @@ class Settings(BaseSettings):
             "llm_configured": self.live_llm_configured,
             "live_llm_enabled": self.enable_live_llm_tests,
             "llm_mock_mode": self.llm_mock_mode,
+            "auth_enabled": self.enable_auth,
+            "auth_configured": self.auth_configured,
         }
 
     def redacted_dict(self) -> dict[str, Any]:

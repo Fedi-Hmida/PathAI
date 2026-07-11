@@ -17,8 +17,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.add_middleware(
         CORSMiddleware,
+        # allow_credentials=True is required so the browser will send the
+        # httpOnly refresh cookie cross-origin (frontend :3000 -> backend
+        # :8000). Safe only because cors_origins is an explicit allowlist,
+        # never "*" (browsers reject credentials + wildcard together).
         allow_origins=resolved_settings.cors_origins,
-        allow_credentials=False,
+        allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
         allow_headers=["*"],
     )

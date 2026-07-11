@@ -22,6 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { AuthStatus } from "@/components/auth/auth-status";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { getDashboard } from "@/lib/api/dashboard";
 import { cn } from "@/lib/utils";
@@ -256,7 +257,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             which would otherwise sit on top of and intercept clicks on
             whatever sidebar control lives there. */}
         <div className="border-border/60 mx-3 mt-1 flex-none border-t px-0 py-3">
-          <ThemeToggle />
+          <AuthStatus open={open} />
+          <div className="mt-1">
+            <ThemeToggle />
+          </div>
         </div>
       </aside>
 

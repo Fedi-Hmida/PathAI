@@ -6,6 +6,7 @@ API_DIR = Path(__file__).resolve().parents[1] / "api" / "v1"
 API_MODULES = [
     "adaptation.py",
     "assessment.py",
+    "auth.py",
     "critic.py",
     "curriculum.py",
     "dashboard.py",

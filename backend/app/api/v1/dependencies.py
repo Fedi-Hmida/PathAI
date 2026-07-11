@@ -5,10 +5,10 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, Request
 
 from app.api.v1.responses import DemoLoadFixturesResponse
-from app.core.settings import get_settings
+from app.core.settings import Settings, get_settings
 from app.fixtures import canonical_demo as demo
 from app.orchestration.runner import run_straight_line_demo_from_container
 from app.repositories.factory import build_repository_set
@@ -23,8 +23,11 @@ from app.repositories.protocols import (
     OrchestrationRunRepository,
     ProgressRepository,
     QuizRepository,
+    RefreshTokenRepository,
     ResourceRepository,
+    UserRepository,
 )
+from app.schemas.auth import UserDTO
 from app.schemas.enums import (
     DifficultyLevel,
     ExecutionMode,
@@ -36,6 +39,8 @@ from app.schemas.orchestration import OrchestrationRunDTO
 from app.services import (
     AdaptationService,
     AssessmentService,
+    AuthService,
+    AuthTokenConfig,
     CriticService,
     CurriculumService,
     DashboardService,
@@ -48,6 +53,7 @@ from app.services import (
     ReportingService,
     ResourceService,
 )
+from app.services.auth import TokenRejectedError
 
 
 @dataclass(slots=True)
@@ -63,6 +69,8 @@ class ApiServiceContainer:
     critic_repository: CriticReviewRepository = field(init=False)
     evaluation_repository: EvaluationRepository = field(init=False)
     orchestration_run_repository: OrchestrationRunRepository = field(init=False)
+    user_repository: UserRepository = field(init=False)
+    refresh_token_repository: RefreshTokenRepository = field(init=False)
     goal_service: GoalService = field(init=False)
     assessment_service: AssessmentService = field(init=False)
     knowledge_map_service: KnowledgeMapService = field(init=False)
@@ -90,6 +98,8 @@ class ApiServiceContainer:
         self.critic_repository = repositories.critic
         self.evaluation_repository = repositories.evaluation
         self.orchestration_run_repository = repositories.orchestration_run
+        self.user_repository = repositories.user
+        self.refresh_token_repository = repositories.refresh_token
         self.goal_service = GoalService(self.goal_repository)
         self.assessment_service = AssessmentService(self.assessment_repository)
         self.knowledge_map_service = KnowledgeMapService(self.knowledge_map_repository)
@@ -130,6 +140,8 @@ class ApiServiceContainer:
         self.critic_repository.clear()
         self.evaluation_repository.clear()
         self.orchestration_run_repository.clear()
+        self.user_repository.clear()
+        self.refresh_token_repository.clear()
 
     def load_canonical_demo(self) -> DemoLoadFixturesResponse:
         self.clear()
@@ -273,6 +285,101 @@ def build_learning_goal(payload: LearningGoalCreate) -> LearningGoalDTO:
         created_at=now,
         updated_at=now,
     )
+
+
+SettingsDependency = Annotated[Settings, Depends(get_settings)]
+
+
+class AuthConfigError(RuntimeError):
+    """Raised when auth is enabled but no signing secret is configured."""
+
+
+def _build_auth_token_config(settings: Settings) -> AuthTokenConfig:
+    secret = settings.jwt_secret_key
+    if secret is None:
+        raise AuthConfigError(
+            "JWT_SECRET_KEY is required when PATHAI_ENABLE_AUTH is true",
+        )
+    return AuthTokenConfig(
+        secret=secret.get_secret_value(),
+        algorithm=settings.jwt_algorithm,
+        access_ttl_seconds=settings.access_token_ttl_seconds,
+        refresh_ttl_seconds=settings.refresh_token_ttl_seconds,
+    )
+
+
+def _auth_service(container: ApiServiceContainer, settings: Settings) -> AuthService:
+    return AuthService(
+        users=container.user_repository,
+        refresh_tokens=container.refresh_token_repository,
+        config=_build_auth_token_config(settings),
+    )
+
+
+def get_auth_service(
+    container: ApiContainerDependency,
+    settings: SettingsDependency,
+) -> AuthService:
+    return _auth_service(container, settings)
+
+
+AuthServiceDependency = Annotated[AuthService, Depends(get_auth_service)]
+
+
+def require_auth_enabled(settings: SettingsDependency) -> None:
+    """Make auth routes invisible (404) unless PATHAI_ENABLE_AUTH is on."""
+    if not settings.enable_auth:
+        raise HTTPException(status_code=404, detail="resource not found")
+
+
+def _bearer_token(request: Request) -> str | None:
+    header = request.headers.get("Authorization")
+    if not header or not header.lower().startswith("bearer "):
+        return None
+    return header[len("bearer ") :].strip() or None
+
+
+def _unauthorized() -> HTTPException:
+    return HTTPException(
+        status_code=401,
+        detail="authentication required",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def require_user(
+    request: Request,
+    settings: SettingsDependency,
+    container: ApiContainerDependency,
+) -> UserDTO | None:
+    """Router-level guard.
+
+    When auth is disabled this is a no-op (returns None) so the local demo and
+    existing routes behave exactly as before. When enabled, a valid bearer
+    access token is required or the request is rejected with 401.
+    """
+    if not settings.enable_auth:
+        return None
+    token = _bearer_token(request)
+    if token is None:
+        raise _unauthorized()
+    try:
+        return _auth_service(container, settings).resolve_access(token)
+    except TokenRejectedError:
+        raise _unauthorized() from None
+
+
+CurrentUserOrNoneDependency = Annotated[UserDTO | None, Depends(require_user)]
+
+
+def get_current_user(user: CurrentUserOrNoneDependency) -> UserDTO:
+    """Strict variant for endpoints that always need an authenticated user."""
+    if user is None:
+        raise _unauthorized()
+    return user
+
+
+CurrentUserDependency = Annotated[UserDTO, Depends(get_current_user)]
 
 
 def reset_api_container_for_tests() -> None:

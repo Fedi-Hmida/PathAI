@@ -7,6 +7,14 @@
 > Future implementation phases should use this MAIN file as the primary reference.
 >
 > `RULES.md` is the mandatory execution rulebook for all future phases and must be read together with this MAIN blueprint.
+>
+> **Rebuild-25 addendum:** gate-only JWT authentication (users,
+> register/login/refresh/logout, behind `PATHAI_ENABLE_AUTH`, default off)
+> was implemented as an explicitly-approved exception to this document's
+> no-auth target — see `docs/decisions/0001-jwt-authentication-gate-only.md`
+> and `RULES.md` §7/§15. The no-auth demo journey described below is
+> unaffected when the flag is off (the default); per-user data ownership is
+> not part of this exception and remains a future phase.
 
 ## Merged Sources
 

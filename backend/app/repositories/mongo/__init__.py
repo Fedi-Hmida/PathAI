@@ -10,7 +10,9 @@ from app.repositories.mongo.knowledge_map import MongoKnowledgeMapRepository
 from app.repositories.mongo.orchestration import MongoOrchestrationRunRepository
 from app.repositories.mongo.progress import MongoProgressRepository
 from app.repositories.mongo.quiz import MongoQuizRepository
+from app.repositories.mongo.refresh_token import MongoRefreshTokenRepository
 from app.repositories.mongo.resource import MongoResourceRepository
+from app.repositories.mongo.user import MongoUserRepository
 
 __all__ = [
     "MongoAdaptationRepository",
@@ -23,5 +25,7 @@ __all__ = [
     "MongoOrchestrationRunRepository",
     "MongoProgressRepository",
     "MongoQuizRepository",
+    "MongoRefreshTokenRepository",
     "MongoResourceRepository",
+    "MongoUserRepository",
 ]

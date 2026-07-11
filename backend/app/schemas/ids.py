@@ -23,6 +23,7 @@ ATTEMPT_PREFIX: Final[str] = "attempt_"
 ADAPTATION_PREFIX: Final[str] = "adapt_"
 CRITIC_PREFIX: Final[str] = "critic_"
 EVALUATION_PREFIX: Final[str] = "eval_"
+USER_PREFIX: Final[str] = "user_"
 
 GoalId: TypeAlias = Annotated[str, Field(pattern=rf"^{GOAL_PREFIX}{ID_BODY_PATTERN}$")]
 RunId: TypeAlias = Annotated[str, Field(pattern=rf"^{RUN_PREFIX}{ID_BODY_PATTERN}$")]
@@ -60,3 +61,4 @@ EvaluationReportId: TypeAlias = Annotated[
     Field(pattern=rf"^{EVALUATION_PREFIX}{ID_BODY_PATTERN}$"),
 ]
 ConceptId: TypeAlias = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{1,80}$")]
+UserId: TypeAlias = Annotated[str, Field(pattern=rf"^{USER_PREFIX}{ID_BODY_PATTERN}$")]
