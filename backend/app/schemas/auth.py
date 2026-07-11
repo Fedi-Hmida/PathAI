@@ -65,6 +65,12 @@ class RefreshTokenRecord(BaseSchema):
     expires_at: datetime
 
 
+class AuthConfig(BaseSchema):
+    """Public, non-secret signal of whether auth is enabled on this server."""
+
+    enabled: bool
+
+
 class AuthSessionResponse(BaseSchema):
     """Login/register/refresh body. The refresh token travels in an httpOnly
     cookie and is intentionally absent here."""

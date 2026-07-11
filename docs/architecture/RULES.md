@@ -252,15 +252,24 @@ The following are excluded until explicitly requested:
 - authentication. **Partially lifted, Rebuild-25:** gate-only JWT auth
   (users, register/login/refresh/logout, protected-route capability) is
   implemented behind `PATHAI_ENABLE_AUTH` (default off) per
-  `docs/decisions/0001-jwt-authentication-gate-only.md`. Per-user data
-  ownership and role-based access control remain excluded below.
+  `docs/decisions/0001-jwt-authentication-gate-only.md`. Role-based access
+  control remains excluded below. **Per-user data ownership lifted,
+  Rebuild-26:** see the new bullet below.
 - JWT/login/register. — see exception above.
 - password hashing. — see exception above.
 - user sessions. — see exception above.
 - protected routes. — the guard mechanism (`require_user`/`RequireAuth`)
-  exists per the exception above; existing product routes (goals, runs,
-  etc.) are not yet gated behind it — that is per-user ownership, still
-  excluded below.
+  exists per the exception above, and product routes are now scoped per
+  owner via `AuthorizationService` when auth is enabled — see the per-user
+  data ownership bullet below.
+- per-user data ownership. **Lifted, Rebuild-26:** `owner_user_id` on the
+  goal/run roots, `AuthorizationService` read-scoping, and per-user
+  workspace seeding (`POST/GET /me/workspace`, reset) are implemented
+  behind `PATHAI_ENABLE_AUTH`, per
+  `docs/decisions/0002-per-user-workspaces.md`. With auth disabled (the
+  default), the shared no-auth demo is unchanged. Cascading deletion on
+  reset and uniquely-generated (non-cloned) per-user content remain future
+  work.
 - Docker.
 - deployment.
 - CI/CD.

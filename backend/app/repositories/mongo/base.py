@@ -72,6 +72,10 @@ class MongoStore(Generic[ModelT]):
         updated = current.model_copy(update=changes, deep=True)
         return self.save(record_id, updated)
 
+    def delete(self, record_id: str) -> None:
+        """Remove a record if present. Idempotent: absent IDs are a no-op."""
+        self._collection.delete_one({"_id": record_id})
+
     def clear(self) -> None:
         self._collection.delete_many({})
 

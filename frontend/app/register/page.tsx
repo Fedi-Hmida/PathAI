@@ -25,7 +25,10 @@ export default function RegisterPage() {
 
   React.useEffect(() => {
     if (status === "authenticated") {
-      router.replace("/account");
+      // Let the home route resolve where an authenticated user actually
+      // belongs (their own workspace, or the empty-state screen), rather
+      // than assuming /account.
+      router.replace("/");
     }
   }, [status, router]);
 
@@ -41,7 +44,7 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await register({ email, password });
-      router.replace("/account");
+      router.replace("/");
     } catch (caughtError) {
       setError(
         caughtError instanceof ApiError

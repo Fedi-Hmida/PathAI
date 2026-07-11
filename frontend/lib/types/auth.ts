@@ -1,3 +1,7 @@
+export type AuthConfig = {
+  enabled: boolean;
+};
+
 export type UserDTO = {
   user_id: string;
   email: string;

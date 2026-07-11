@@ -34,5 +34,8 @@ class FakeOrchestrationRunRepository:
         node_events = [*run.node_events, event]
         return self._runs.update_fields(run_id, node_events=node_events)
 
+    def delete(self, run_id: RunId) -> None:
+        self._runs.delete(run_id)
+
     def clear(self) -> None:
         self._runs.clear()

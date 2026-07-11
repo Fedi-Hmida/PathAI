@@ -23,8 +23,10 @@ import {
 } from "lucide-react";
 
 import { AuthStatus } from "@/components/auth/auth-status";
+import { useAuth } from "@/components/auth/auth-provider";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { getDashboard } from "@/lib/api/dashboard";
+import { getMyWorkspace } from "@/lib/api/workspace";
 import { cn } from "@/lib/utils";
 import { DEMO_RUN_ID } from "@/lib/types/orchestration";
 
@@ -120,17 +122,58 @@ function SectionLabel({ open, children }: { open: boolean; children: React.React
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { status, authEnabled } = useAuth();
   const [open, setOpen] = React.useState(true);
   const [artifactIds, setArtifactIds] = React.useState<Record<string, string> | null>(null);
+  // Only ever set from the async workspace lookup below; the no-auth and
+  // not-yet-authenticated cases are pure derived values (no effect needed).
+  const [ownWorkspaceRunId, setOwnWorkspaceRunId] = React.useState<string | null>(null);
+
+  const needsOwnWorkspace = authEnabled === true && status === "authenticated";
+  const ownRunId =
+    authEnabled === false ? DEMO_RUN_ID : needsOwnWorkspace ? ownWorkspaceRunId : null;
+
+  // In no-auth mode there is one canonical demo run for everyone (handled
+  // above, no fetch needed). In per-user mode, each caller has their own
+  // run, resolved via their workspace rather than a fixed ID.
+  React.useEffect(() => {
+    if (!needsOwnWorkspace) {
+      return;
+    }
+    let cancelled = false;
+    getMyWorkspace()
+      .then((workspace) => {
+        if (!cancelled) {
+          setOwnWorkspaceRunId(workspace?.run_id ?? null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setOwnWorkspaceRunId(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsOwnWorkspace]);
 
   // Sidebar links for the drill-down screens (Knowledge Map, Assessment,
-  // Curriculum) need real artifact IDs, not just the demo run ID — there is
-  // no run-listing screen, so this fetches the one canonical demo run's
-  // dashboard once to resolve them. Until this resolves (or an ID is
-  // missing), those links render inactive instead of pointing at a 404.
+  // Curriculum) need real artifact IDs, not just the run ID — there is no
+  // run-listing screen, so this fetches the resolved run's dashboard once to
+  // resolve them. Until this resolves (or an ID is missing), those links
+  // render inactive instead of pointing at a 404.
+  const [loadedArtifactsForRunId, setLoadedArtifactsForRunId] = React.useState<string | null>(null);
+  if (ownRunId !== loadedArtifactsForRunId) {
+    setLoadedArtifactsForRunId(ownRunId);
+    setArtifactIds(null);
+  }
+
   React.useEffect(() => {
+    if (!ownRunId) {
+      return;
+    }
     let cancelled = false;
-    getDashboard(DEMO_RUN_ID)
+    getDashboard(ownRunId)
       .then((dashboard) => {
         if (!cancelled) {
           setArtifactIds(dashboard.navigation_summary.artifact_ids);
@@ -143,19 +186,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [ownRunId]);
 
   const [section, pathRunId] = pathname.split("/").filter(Boolean);
-  // This is a single-tenant, no-auth demo with exactly one meaningful
-  // orchestration run (no run-listing screen exists or is planned). Section
-  // links preserve whatever runId is in the current URL when on a
-  // run-scoped screen, and fall back to the canonical demo run everywhere
-  // else (e.g. the contextual /curriculum/* drill-down, which has no runId
-  // of its own).
+  // Section links preserve whatever runId is in the current URL when on a
+  // run-scoped screen (this is always correct, per-user or not, since the
+  // URL itself already carries the caller's own run once they're on it),
+  // and fall back to the resolved own run everywhere else (e.g. the
+  // contextual /curriculum/* drill-down, which has no runId of its own).
   const runId =
     (section === "dashboard" || section === "orchestration") && pathRunId
       ? pathRunId
-      : DEMO_RUN_ID;
+      : (ownRunId ?? DEMO_RUN_ID);
 
   const knowledgeMapId = artifactIds?.knowledge_map_id;
   const assessmentId = artifactIds?.assessment_id;

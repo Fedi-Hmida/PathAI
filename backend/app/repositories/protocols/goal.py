@@ -4,7 +4,7 @@ from typing import Protocol
 
 from app.schemas.enums import GoalStatus
 from app.schemas.goal import LearningGoalDTO
-from app.schemas.ids import GoalId, RunId
+from app.schemas.ids import GoalId, RunId, UserId
 
 
 class GoalRepository(Protocol):
@@ -16,8 +16,12 @@ class GoalRepository(Protocol):
 
     def get_by_run_id(self, run_id: RunId) -> LearningGoalDTO: ...
 
+    def find_by_owner(self, owner_user_id: UserId) -> LearningGoalDTO | None: ...
+
     def list_all(self) -> list[LearningGoalDTO]: ...
 
     def update_status(self, goal_id: GoalId, status: GoalStatus) -> LearningGoalDTO: ...
+
+    def delete(self, goal_id: GoalId) -> None: ...
 
     def clear(self) -> None: ...

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1.dependencies import AdaptationServiceDependency
+from app.api.v1.dependencies import (
+    AdaptationServiceDependency,
+    AuthorizationDependency,
+    CurrentUserOrNoneDependency,
+)
 from app.schemas.adaptation import AdaptationEventDTO
 from app.schemas.ids import AdaptationId
 
@@ -13,5 +17,9 @@ router = APIRouter(prefix="/adaptations", tags=["adaptations"])
 def get_adaptation(
     adaptation_id: AdaptationId,
     service: AdaptationServiceDependency,
+    current_user: CurrentUserOrNoneDependency,
+    authz: AuthorizationDependency,
 ) -> AdaptationEventDTO:
-    return service.get_by_id(adaptation_id)
+    adaptation = service.get_by_id(adaptation_id)
+    authz.assert_goal_access(current_user, adaptation.goal_id)
+    return adaptation

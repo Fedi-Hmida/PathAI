@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.services.adaptation import AdaptationService
 from app.services.assessment import AssessmentService
 from app.services.auth import AuthService, AuthTokenConfig
+from app.services.authorization import AuthorizationService
 from app.services.critic import CriticService
 from app.services.curriculum import CurriculumService
 from app.services.dashboard import DashboardService
@@ -14,12 +15,14 @@ from app.services.progress import ProgressService
 from app.services.quiz import QuizService
 from app.services.reporting import ReportingService
 from app.services.resource import ResourceService
+from app.services.workspace import WorkspaceService
 
 __all__ = [
     "AdaptationService",
     "AssessmentService",
     "AuthService",
     "AuthTokenConfig",
+    "AuthorizationService",
     "CriticService",
     "CurriculumService",
     "DashboardService",
@@ -31,4 +34,5 @@ __all__ = [
     "QuizService",
     "ReportingService",
     "ResourceService",
+    "WorkspaceService",
 ]

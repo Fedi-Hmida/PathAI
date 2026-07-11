@@ -39,6 +39,7 @@ from app.schemas.orchestration import OrchestrationRunDTO
 from app.services import (
     AdaptationService,
     AssessmentService,
+    AuthorizationService,
     AuthService,
     AuthTokenConfig,
     CriticService,
@@ -52,6 +53,7 @@ from app.services import (
     QuizService,
     ReportingService,
     ResourceService,
+    WorkspaceService,
 )
 from app.services.auth import TokenRejectedError
 
@@ -84,6 +86,7 @@ class ApiServiceContainer:
     orchestration_run_service: OrchestrationRunService = field(init=False)
     dashboard_service: DashboardService = field(init=False)
     reporting_service: ReportingService = field(init=False)
+    workspace_service: WorkspaceService = field(init=False)
 
     def __post_init__(self) -> None:
         repositories = build_repository_set(get_settings())
@@ -127,6 +130,19 @@ class ApiServiceContainer:
             critics=self.critic_repository,
         )
         self.reporting_service = ReportingService(self.dashboard_service)
+        self.workspace_service = WorkspaceService(
+            goals=self.goal_repository,
+            orchestration_runs=self.orchestration_run_repository,
+            assessments=self.assessment_repository,
+            knowledge_maps=self.knowledge_map_repository,
+            curricula=self.curriculum_repository,
+            resources=self.resource_repository,
+            progress_states=self.progress_repository,
+            quizzes=self.quiz_repository,
+            adaptations=self.adaptation_repository,
+            critics=self.critic_repository,
+            evaluations=self.evaluation_repository,
+        )
 
     def clear(self) -> None:
         self.goal_repository.clear()
@@ -332,6 +348,23 @@ def require_auth_enabled(settings: SettingsDependency) -> None:
         raise HTTPException(status_code=404, detail="resource not found")
 
 
+def require_auth_disabled(settings: SettingsDependency) -> None:
+    """Guard shared-state routes that must not run while auth is enabled.
+
+    The demo fixture loader clears ALL data; with per-user workspaces active it
+    would wipe every user's data, so it is hidden (404) when auth is on.
+    """
+    if settings.enable_auth:
+        raise HTTPException(status_code=404, detail="resource not found")
+
+
+def get_workspace_service(container: ApiContainerDependency) -> WorkspaceService:
+    return container.workspace_service
+
+
+WorkspaceServiceDependency = Annotated[WorkspaceService, Depends(get_workspace_service)]
+
+
 def _bearer_token(request: Request) -> str | None:
     header = request.headers.get("Authorization")
     if not header or not header.lower().startswith("bearer "):
@@ -380,6 +413,13 @@ def get_current_user(user: CurrentUserOrNoneDependency) -> UserDTO:
 
 
 CurrentUserDependency = Annotated[UserDTO, Depends(get_current_user)]
+
+
+def get_authorization_service(container: ApiContainerDependency) -> AuthorizationService:
+    return AuthorizationService(container.goal_repository)
+
+
+AuthorizationDependency = Annotated[AuthorizationService, Depends(get_authorization_service)]
 
 
 def reset_api_container_for_tests() -> None:

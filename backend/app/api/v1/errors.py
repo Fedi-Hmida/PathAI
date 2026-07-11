@@ -9,6 +9,7 @@ from app.services.auth import (
     InvalidCredentialsError,
     TokenRejectedError,
 )
+from app.services.workspace import WorkspaceExistsError
 
 
 def register_api_exception_handlers(app: FastAPI) -> None:
@@ -55,3 +56,10 @@ def register_api_exception_handlers(app: FastAPI) -> None:
         _error: TokenRejectedError,
     ) -> JSONResponse:
         return JSONResponse(status_code=401, content={"detail": "authentication required"})
+
+    @app.exception_handler(WorkspaceExistsError)
+    async def workspace_exists_handler(
+        _request: Request,
+        _error: WorkspaceExistsError,
+    ) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": "workspace already exists"})

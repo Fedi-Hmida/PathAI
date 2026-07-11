@@ -1,10 +1,15 @@
-import { apiGet, apiPost } from "@/lib/api/client";
+import { apiGet, apiPost, refreshSession as sharedRefreshSession } from "@/lib/api/client";
 import type {
+  AuthConfig,
   AuthSessionResponse,
   LoginRequest,
   RegisterRequest,
   UserDTO,
 } from "@/lib/types/auth";
+
+export function getAuthConfig(): Promise<AuthConfig> {
+  return apiGet<AuthConfig>("/auth/config");
+}
 
 export function registerUser(payload: RegisterRequest): Promise<AuthSessionResponse> {
   return apiPost<AuthSessionResponse>("/auth/register", payload);
@@ -14,8 +19,10 @@ export function loginUser(payload: LoginRequest): Promise<AuthSessionResponse> {
   return apiPost<AuthSessionResponse>("/auth/login", payload);
 }
 
+// Delegates to the client's shared, deduped refresh call rather than issuing
+// its own /auth/refresh request - see client.ts for why that dedup matters.
 export function refreshSession(): Promise<AuthSessionResponse> {
-  return apiPost<AuthSessionResponse>("/auth/refresh");
+  return sharedRefreshSession<AuthSessionResponse>();
 }
 
 export function logoutUser(): Promise<void> {

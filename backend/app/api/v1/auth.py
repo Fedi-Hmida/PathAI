@@ -9,10 +9,20 @@ from app.api.v1.dependencies import (
     require_auth_enabled,
 )
 from app.core.settings import Settings
-from app.schemas.auth import AuthSessionResponse, LoginRequest, UserCreate, UserDTO
+from app.schemas.auth import AuthConfig, AuthSessionResponse, LoginRequest, UserCreate, UserDTO
 from app.services.auth import TokenRejectedError
 
-# Every auth route is hidden (404) unless PATHAI_ENABLE_AUTH is set.
+# Deliberately NOT gated by require_auth_enabled: callers must be able to
+# tell whether auth is on before they know whether to call any gated route.
+public_router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@public_router.get("/config", response_model=AuthConfig)
+def get_auth_config(settings: SettingsDependency) -> AuthConfig:
+    return AuthConfig(enabled=settings.enable_auth)
+
+
+# Every other auth route is hidden (404) unless PATHAI_ENABLE_AUTH is set.
 router = APIRouter(
     prefix="/auth",
     tags=["auth"],

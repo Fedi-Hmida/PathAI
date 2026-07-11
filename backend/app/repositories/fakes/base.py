@@ -53,6 +53,10 @@ class InMemoryStore(Generic[ModelT]):
         self._records[record_id] = self._copy(cast(ModelT, updated))
         return self._copy(self._records[record_id])
 
+    def delete(self, record_id: str) -> None:
+        """Remove a record if present. Idempotent: absent IDs are a no-op."""
+        self._records.pop(record_id, None)
+
     def clear(self) -> None:
         self._records.clear()
 

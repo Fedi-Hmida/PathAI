@@ -4,7 +4,7 @@ from pydantic import Field
 
 from app.schemas.base import BaseSchema, TimestampedDTO, VersionedDTO
 from app.schemas.enums import DifficultyLevel, GoalStatus
-from app.schemas.ids import GoalId, RunId
+from app.schemas.ids import GoalId, RunId, UserId
 
 
 class LearnerProfile(BaseSchema):
@@ -27,6 +27,10 @@ class LearningGoalCreate(BaseSchema):
 class LearningGoalDTO(TimestampedDTO, VersionedDTO):
     goal_id: GoalId
     run_id: RunId
+    # Owner of this workspace. None = shared/no-auth demo data (unchanged
+    # behavior when PATHAI_ENABLE_AUTH is off). Set only for per-user
+    # workspaces seeded while auth is enabled.
+    owner_user_id: UserId | None = None
     goal_text: str = Field(min_length=5, max_length=500)
     normalized_goal_text: str = Field(min_length=5, max_length=500)
     status: GoalStatus

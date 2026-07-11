@@ -32,6 +32,7 @@ from app.schemas.ids import (
     ProgressId,
     QuizId,
     RunId,
+    UserId,
 )
 
 
@@ -87,6 +88,8 @@ class OrchestrationRunCreate(BaseSchema):
 class OrchestrationRunDTO(TimestampedDTO, VersionedDTO):
     run_id: RunId
     goal_id: GoalId | None = None
+    # Owner of this run's workspace. None = shared/no-auth demo data.
+    owner_user_id: UserId | None = None
     workflow_version: str = Field(min_length=1, max_length=40)
     status: OrchestrationRunStatus
     current_node: str | None = Field(default=None, max_length=120)

@@ -21,6 +21,7 @@ API_MODULES = [
     "quiz.py",
     "resource.py",
     "router.py",
+    "workspace.py",
 ]
 ROUTE_MODULES = [
     module

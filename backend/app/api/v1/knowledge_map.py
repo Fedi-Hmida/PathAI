@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1.dependencies import KnowledgeMapServiceDependency
+from app.api.v1.dependencies import (
+    AuthorizationDependency,
+    CurrentUserOrNoneDependency,
+    KnowledgeMapServiceDependency,
+)
 from app.schemas.ids import KnowledgeMapId
 from app.schemas.knowledge_map import KnowledgeMapDTO
 
@@ -13,5 +17,9 @@ router = APIRouter(prefix="/knowledge-maps", tags=["knowledge-maps"])
 def get_knowledge_map(
     knowledge_map_id: KnowledgeMapId,
     service: KnowledgeMapServiceDependency,
+    current_user: CurrentUserOrNoneDependency,
+    authz: AuthorizationDependency,
 ) -> KnowledgeMapDTO:
-    return service.get_by_id(knowledge_map_id)
+    knowledge_map = service.get_by_id(knowledge_map_id)
+    authz.assert_goal_access(current_user, knowledge_map.goal_id)
+    return knowledge_map

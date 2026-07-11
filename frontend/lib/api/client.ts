@@ -69,32 +69,49 @@ async function rawFetch(
   }
 }
 
-// Attempts to mint a fresh access token from the httpOnly refresh cookie.
-// Returns true and updates the in-memory token on success; on any failure
-// clears the token (the client must be treated as logged out) and returns
-// false. Never throws - callers decide what a failed refresh means.
-async function attemptSilentRefresh(): Promise<boolean> {
+// Mints a fresh access token from the httpOnly refresh cookie. Deduped via a
+// single shared in-flight promise: on a fresh page load, AuthProvider's own
+// bootstrap AND any data-fetching page mounted alongside it (which fires
+// before the bootstrap's access token exists, so its request 401s and hits
+// the interceptor below) would otherwise both race to call this endpoint.
+// Since refresh tokens rotate on every use, two concurrent calls would each
+// present the same soon-to-be-stale cookie - the second one to land trips
+// reuse detection and revokes the whole session. Sharing one in-flight
+// promise means every concurrent caller gets the one real result instead.
+let inFlightRefresh: Promise<unknown> | null = null;
+
+function refreshAccessToken<T>(): Promise<T> {
+  if (!inFlightRefresh) {
+    inFlightRefresh = doRefresh().finally(() => {
+      inFlightRefresh = null;
+    });
+  }
+  return inFlightRefresh as Promise<T>;
+}
+
+async function doRefresh(): Promise<unknown> {
+  let response: Response;
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    response = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: "POST",
       headers: { Accept: "application/json" },
       credentials: "include",
     });
-    if (!response.ok) {
-      setAccessToken(null);
-      return false;
-    }
-    const body = (await parseJsonBody(response)) as { access_token?: string } | null;
-    if (!body?.access_token) {
-      setAccessToken(null);
-      return false;
-    }
-    setAccessToken(body.access_token);
-    return true;
   } catch {
-    setAccessToken(null);
-    return false;
+    throw new ApiError(0, "Unable to reach the PathAI backend.");
   }
+  const parsed = await parseJsonBody(response);
+  if (!response.ok) {
+    setAccessToken(null);
+    throw new ApiError(response.status, extractErrorMessage(parsed));
+  }
+  const body = parsed as { access_token?: string } | null;
+  if (!body?.access_token) {
+    setAccessToken(null);
+    throw new ApiError(response.status, "Session refresh returned no access token.");
+  }
+  setAccessToken(body.access_token);
+  return body;
 }
 
 async function request<T>(
@@ -105,9 +122,11 @@ async function request<T>(
   let response = await rawFetch(method, path, body);
 
   if (response.status === 401 && !NO_REFRESH_RETRY_PATHS.has(path)) {
-    const refreshed = await attemptSilentRefresh();
-    if (refreshed) {
+    try {
+      await refreshAccessToken();
       response = await rawFetch(method, path, body);
+    } catch {
+      // Refresh failed; fall through and surface the original 401 below.
     }
   }
 
@@ -116,6 +135,13 @@ async function request<T>(
     throw new ApiError(response.status, extractErrorMessage(parsed));
   }
   return parsed as T;
+}
+
+// Exposed so AuthProvider's session bootstrap shares the exact same
+// in-flight refresh call (and its dedup lock) as the request interceptor
+// above, rather than issuing an independent, racing /auth/refresh call.
+export function refreshSession<T>(): Promise<T> {
+  return refreshAccessToken<T>();
 }
 
 export function apiGet<T>(path: string): Promise<T> {

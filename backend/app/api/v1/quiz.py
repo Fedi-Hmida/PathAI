@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1.dependencies import QuizServiceDependency
+from app.api.v1.dependencies import (
+    AuthorizationDependency,
+    CurrentUserOrNoneDependency,
+    QuizServiceDependency,
+)
 from app.schemas.ids import QuizId
 from app.schemas.quiz import LearnerQuizDTO, LearnerQuizQuestionDTO, QuizDTO
 
@@ -10,8 +14,15 @@ router = APIRouter(prefix="/quizzes", tags=["quizzes"])
 
 
 @router.get("/{quiz_id}", response_model=LearnerQuizDTO)
-def get_quiz(quiz_id: QuizId, service: QuizServiceDependency) -> LearnerQuizDTO:
-    return _to_learner_quiz(service.get_quiz_by_id(quiz_id))
+def get_quiz(
+    quiz_id: QuizId,
+    service: QuizServiceDependency,
+    current_user: CurrentUserOrNoneDependency,
+    authz: AuthorizationDependency,
+) -> LearnerQuizDTO:
+    quiz = service.get_quiz_by_id(quiz_id)
+    authz.assert_goal_access(current_user, quiz.goal_id)
+    return _to_learner_quiz(quiz)
 
 
 def _to_learner_quiz(quiz: QuizDTO) -> LearnerQuizDTO:
