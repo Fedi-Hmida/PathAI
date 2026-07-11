@@ -214,6 +214,7 @@ export default function DashboardPage() {
       <CurriculumWeekList
         curriculumSummary={dashboard.curriculum_summary}
         currentTopic={dashboard.progress_summary?.current_topic ?? null}
+        navigationSummary={dashboard.navigation_summary}
       />
     </div>
   );

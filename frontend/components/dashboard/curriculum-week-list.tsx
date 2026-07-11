@@ -1,6 +1,8 @@
+import Link from "next/link";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { CurriculumSummary, CurriculumWeekSummary } from "@/lib/types/dashboard";
+import type { CurriculumSummary, CurriculumWeekSummary, NavigationSummary } from "@/lib/types/dashboard";
 
 export function isCurrentWeek(
   week: CurriculumWeekSummary,
@@ -9,13 +11,37 @@ export function isCurrentWeek(
   return currentTopic != null && week.topic_titles.includes(currentTopic);
 }
 
+// navigation_summary.artifact_ids omits keys whose value is null
+// (see _artifact_ids() in backend/app/services/dashboard.py), so only
+// the params that are actually present get forwarded to the detail page.
+function buildWeekHref(
+  curriculumId: string,
+  weekNumber: number,
+  artifactIds: Record<string, string>
+): string {
+  const params = new URLSearchParams({ week: String(weekNumber) });
+  if (artifactIds.progress_state_id) {
+    params.set("progressId", artifactIds.progress_state_id);
+  }
+  if (artifactIds.knowledge_map_id) {
+    params.set("knowledgeMapId", artifactIds.knowledge_map_id);
+  }
+  return `/curriculum/${curriculumId}?${params.toString()}`;
+}
+
 type CurriculumWeekListProps = {
   curriculumSummary: CurriculumSummary | null;
   currentTopic: string | null;
+  navigationSummary: NavigationSummary;
 };
 
-export function CurriculumWeekList({ curriculumSummary, currentTopic }: CurriculumWeekListProps) {
+export function CurriculumWeekList({
+  curriculumSummary,
+  currentTopic,
+  navigationSummary,
+}: CurriculumWeekListProps) {
   const weeks = curriculumSummary?.weeks ?? [];
+  const curriculumId = curriculumSummary?.active_curriculum_id ?? null;
 
   return (
     <Card className="py-6">
@@ -36,16 +62,12 @@ export function CurriculumWeekList({ curriculumSummary, currentTopic }: Curricul
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {weeks.map((week) => {
               const active = isCurrentWeek(week, currentTopic);
-              return (
-                <div
-                  key={week.week_number}
-                  className={cn(
-                    "flex flex-col gap-2.5 rounded-xl border p-4",
-                    active
-                      ? "border-brand bg-brand-tint"
-                      : "border-border"
-                  )}
-                >
+              const cardClassName = cn(
+                "flex flex-col gap-2.5 rounded-xl border p-4",
+                active ? "border-brand bg-brand-tint" : "border-border"
+              );
+              const cardContent = (
+                <>
                   <div className="flex items-center gap-2">
                     <span
                       className={cn(
@@ -74,7 +96,25 @@ export function CurriculumWeekList({ curriculumSummary, currentTopic }: Curricul
                       ))}
                     </div>
                   ) : null}
-                </div>
+                </>
+              );
+
+              if (curriculumId === null) {
+                return (
+                  <div key={week.week_number} className={cardClassName}>
+                    {cardContent}
+                  </div>
+                );
+              }
+
+              return (
+                <Link
+                  key={week.week_number}
+                  href={buildWeekHref(curriculumId, week.week_number, navigationSummary.artifact_ids)}
+                  className={cn(cardClassName, "hover:border-brand transition-colors")}
+                >
+                  {cardContent}
+                </Link>
               );
             })}
           </div>

@@ -1,20 +1,30 @@
-const STROKE_WIDTH = 6;
+const DEFAULT_STROKE_WIDTH = 6;
 
 type ProgressRingProps = {
   value: number;
   size?: number;
+  strokeWidth?: number;
   label?: string;
+  hideLabel?: boolean;
+  indicatorColor?: string;
 };
 
-export function ProgressRing({ value, size = 72, label = "complete" }: ProgressRingProps) {
+export function ProgressRing({
+  value,
+  size = 72,
+  strokeWidth = DEFAULT_STROKE_WIDTH,
+  label = "complete",
+  hideLabel = false,
+  indicatorColor = "var(--primary)",
+}: ProgressRingProps) {
   const clamped = Math.min(100, Math.max(0, value));
-  const radius = (size - STROKE_WIDTH) / 2;
+  const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - clamped / 100);
 
   return (
     <div
-      className="relative inline-flex items-center justify-center"
+      className="relative inline-flex flex-none items-center justify-center"
       style={{ width: size, height: size }}
       role="img"
       aria-label={`${clamped}% ${label}`}
@@ -26,24 +36,26 @@ export function ProgressRing({ value, size = 72, label = "complete" }: ProgressR
           r={radius}
           fill="none"
           stroke="var(--surface-sunken)"
-          strokeWidth={STROKE_WIDTH}
+          strokeWidth={strokeWidth}
         />
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="var(--primary)"
-          strokeWidth={STROKE_WIDTH}
+          stroke={indicatorColor}
+          strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           style={{ transition: "stroke-dashoffset var(--duration-slow) var(--ease-standard)" }}
         />
       </svg>
-      <span className="font-tabular absolute text-sm font-semibold text-foreground">
-        {clamped}%
-      </span>
+      {hideLabel ? null : (
+        <span className="font-tabular absolute text-sm font-semibold text-foreground">
+          {clamped}%
+        </span>
+      )}
     </div>
   );
 }
