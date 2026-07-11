@@ -1,0 +1,169 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * PathAI design tokens, sourced from the approved "Learner dashboard"
+ * Claude Design mockup's design system (colors.css/typography.css/
+ * spacing.css). Scoped to this file's CSS variables only, per this
+ * comment's original contract — component code should never need to
+ * change when these values are revised.
+ *
+ * Naming note: shadcn's `--accent`/`--accent-foreground` is a neutral
+ * hover-surface role (ghost button/badge hover), distinct from the design
+ * system's "accent" (brand indigo). `--primary` carries the indigo brand
+ * color; `--accent` keeps shadcn's neutral-hover semantics; the indigo
+ * tint/border pairing the "Next action" card and focus rings need is
+ * exposed separately as `--brand-*`.
+ */
+:root {
+  --radius-pill: 999px;
+
+  --background: #f3f5f7;
+  --foreground: #161e24;
+  --card: #ffffff;
+  --card-foreground: #161e24;
+  --popover: #ffffff;
+  --popover-foreground: #161e24;
+  --primary: #5457d6;
+  --primary-foreground: #ffffff;
+  --secondary: #e7ebee;
+  --secondary-foreground: #161e24;
+  --muted: #e7ebee;
+  --muted-foreground: #56636d;
+  --accent: #e7ebee;
+  --accent-foreground: #161e24;
+  --destructive: #ce4a46;
+  --border: #d6dce1;
+  --input: #d6dce1;
+  --ring: #5457d6;
+
+  --text-secondary: #56636d;
+  --text-tertiary: #75838d;
+  --surface-sunken: #e7ebee;
+
+  --brand: #5457d6;
+  --brand-hover: #4548b8;
+  --brand-tint: #e7e7fb;
+  --brand-border: #a0a2ec;
+
+  --success: #2e9e64;
+  --success-tint: #e3f5eb;
+  --warning: #c9821f;
+  --warning-tint: #fbf0de;
+  --danger: #ce4a46;
+  --danger-tint: #fae6e5;
+
+  --elevation-sm: 0 1px 2px rgba(15, 21, 26, 0.06);
+  --elevation-md: 0 4px 12px rgba(15, 21, 26, 0.08);
+  --duration-fast: 120ms;
+  --duration-slow: 320ms;
+  --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
+}
+
+.dark {
+  --background: #0f151a;
+  --foreground: #eaf0f3;
+  --card: #151d23;
+  --card-foreground: #eaf0f3;
+  --popover: #151d23;
+  --popover-foreground: #eaf0f3;
+  --primary: #6e71e0;
+  --primary-foreground: #ffffff;
+  --secondary: #232e36;
+  --secondary-foreground: #eaf0f3;
+  --muted: #232e36;
+  --muted-foreground: #9fadb6;
+  --accent: #232e36;
+  --accent-foreground: #eaf0f3;
+  --destructive: #dd6a66;
+  --border: #232e36;
+  --input: #232e36;
+  --ring: #8688e6;
+
+  --text-secondary: #9fadb6;
+  --text-tertiary: #71818b;
+  --surface-sunken: #0c1116;
+
+  --brand: #6e71e0;
+  --brand-hover: #8688e6;
+  --brand-tint: #262a57;
+  --brand-border: #3e4190;
+
+  --success: #3cb578;
+  --success-tint: #133327;
+  --warning: #db9a3f;
+  --warning-tint: #3a2a12;
+  --danger: #dd6a66;
+  --danger-tint: #3a1918;
+
+  --elevation-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --elevation-md: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-tertiary: var(--text-tertiary);
+  --color-surface-sunken: var(--surface-sunken);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-tint: var(--brand-tint);
+  --color-brand-border: var(--brand-border);
+
+  --color-success: var(--success);
+  --color-success-tint: var(--success-tint);
+  --color-warning: var(--warning);
+  --color-warning-tint: var(--warning-tint);
+  --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
+
+  --font-sans: var(--font-plex-sans);
+  --font-serif: var(--font-plex-serif);
+  --font-mono: var(--font-plex-mono);
+
+  --shadow-sm: var(--elevation-sm);
+  --shadow-md: var(--elevation-md);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .font-goal {
+    font-family: var(--font-serif);
+  }
+  .font-tabular {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+}
