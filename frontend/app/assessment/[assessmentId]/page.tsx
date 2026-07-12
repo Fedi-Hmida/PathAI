@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { RequireAuth } from "@/components/auth/require-auth";
 import { QuestionPanel } from "@/components/assessment/question-panel";
 import { QuestionTrail } from "@/components/assessment/question-trail";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -29,9 +30,11 @@ const STATUS_CONFIG: Record<AssessmentStatus, { label: string; className: string
 
 export default function AssessmentPage() {
   return (
-    <React.Suspense fallback={<AssessmentSkeleton />}>
-      <AssessmentView />
-    </React.Suspense>
+    <RequireAuth>
+      <React.Suspense fallback={<AssessmentSkeleton />}>
+        <AssessmentView />
+      </React.Suspense>
+    </RequireAuth>
   );
 }
 

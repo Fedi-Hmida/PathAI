@@ -1,15 +1,10 @@
 import { apiGet, apiPost, refreshSession as sharedRefreshSession } from "@/lib/api/client";
 import type {
-  AuthConfig,
   AuthSessionResponse,
   LoginRequest,
   RegisterRequest,
   UserDTO,
 } from "@/lib/types/auth";
-
-export function getAuthConfig(): Promise<AuthConfig> {
-  return apiGet<AuthConfig>("/auth/config");
-}
 
 export function registerUser(payload: RegisterRequest): Promise<AuthSessionResponse> {
   return apiPost<AuthSessionResponse>("/auth/register", payload);

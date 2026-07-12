@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useParams } from "next/navigation";
 
+import { RequireAuth } from "@/components/auth/require-auth";
 import { PhaseStepper } from "@/components/orchestration/phase-stepper";
 import { RunStatusFooter } from "@/components/orchestration/run-status-footer";
 import { UnlockingPanel } from "@/components/orchestration/unlocking-panel";
@@ -53,6 +54,14 @@ function isTerminalStatus(status: OrchestrationStatus): boolean {
 }
 
 export default function OrchestrationRunPage() {
+  return (
+    <RequireAuth>
+      <OrchestrationRunView />
+    </RequireAuth>
+  );
+}
+
+function OrchestrationRunView() {
   const params = useParams<{ runId: string }>();
   const runId = params.runId;
   const [loadedRunId, setLoadedRunId] = React.useState(runId);

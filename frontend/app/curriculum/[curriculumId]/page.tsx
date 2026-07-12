@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { RequireAuth } from "@/components/auth/require-auth";
 import { WeekPanel } from "@/components/curriculum/week-panel";
 import { WeekTrail } from "@/components/curriculum/week-trail";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -26,9 +27,11 @@ type CurriculumLoadState =
 
 export default function CurriculumWeekDetailPage() {
   return (
-    <React.Suspense fallback={<CurriculumSkeleton />}>
-      <CurriculumWeekDetailView />
-    </React.Suspense>
+    <RequireAuth>
+      <React.Suspense fallback={<CurriculumSkeleton />}>
+        <CurriculumWeekDetailView />
+      </React.Suspense>
+    </RequireAuth>
   );
 }
 

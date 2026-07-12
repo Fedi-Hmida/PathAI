@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 
+import { RequireAuth } from "@/components/auth/require-auth";
 import { ConceptDetailPanel } from "@/components/knowledge-map/concept-detail-panel";
 import { ConceptGraph } from "@/components/knowledge-map/concept-graph";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -32,9 +33,11 @@ const STATUS_CONFIG: Record<KnowledgeMapStatus, { label: string; className: stri
 
 export default function KnowledgeMapPage() {
   return (
-    <React.Suspense fallback={<KnowledgeMapSkeleton />}>
-      <KnowledgeMapView />
-    </React.Suspense>
+    <RequireAuth>
+      <React.Suspense fallback={<KnowledgeMapSkeleton />}>
+        <KnowledgeMapView />
+      </React.Suspense>
+    </RequireAuth>
   );
 }
 

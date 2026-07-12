@@ -6,21 +6,13 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getMyWorkspace } from "@/lib/api/workspace";
-import { DEMO_RUN_ID } from "@/lib/types/orchestration";
 
 export default function Home() {
-  const { status, authEnabled } = useAuth();
+  const { status } = useAuth();
   const router = useRouter();
 
   React.useEffect(() => {
-    if (authEnabled === null || status === "loading") {
-      return;
-    }
-
-    if (!authEnabled) {
-      // No-auth mode (the default): behave exactly as before this feature -
-      // a single shared demo run for everyone.
-      router.replace(`/dashboard/${DEMO_RUN_ID}`);
+    if (status === "loading") {
       return;
     }
 
@@ -29,8 +21,8 @@ export default function Home() {
       return;
     }
 
-    // Authenticated with auth on: route to the caller's own workspace, or
-    // the empty-state screen if they haven't created one yet.
+    // Authenticated: route to the caller's own workspace, or the
+    // empty-state screen if they haven't created one yet.
     let cancelled = false;
     getMyWorkspace()
       .then((workspace) => {
@@ -47,7 +39,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [authEnabled, status, router]);
+  }, [status, router]);
 
   return (
     <div className="flex flex-col gap-3">

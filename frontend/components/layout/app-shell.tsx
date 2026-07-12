@@ -24,13 +24,12 @@ import {
 
 import { AuthStatus } from "@/components/auth/auth-status";
 import { useAuth } from "@/components/auth/auth-provider";
+import { SplashScreen } from "@/components/layout/splash-screen";
+import { CollapsingLabel, SIDEBAR_TRANSITION } from "@/components/layout/sidebar-primitives";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { getDashboard } from "@/lib/api/dashboard";
 import { getMyWorkspace } from "@/lib/api/workspace";
 import { cn } from "@/lib/utils";
-import { DEMO_RUN_ID } from "@/lib/types/orchestration";
-
-const SIDEBAR_TRANSITION = "var(--duration-slow) var(--ease-standard)";
 
 // Screens with no route yet (empty components/<name>/ scaffolding, no
 // app/<name>/ page). Shown in the sidebar as inactive placeholders so their
@@ -46,17 +45,6 @@ const COMING_SOON_LINKS: { label: string; icon: LucideIcon }[] = [
   { label: "Evaluation", icon: CheckCircle2 },
   { label: "Agents", icon: Bot },
 ];
-
-function CollapsingLabel({ open, children }: { open: boolean; children: React.ReactNode }) {
-  return (
-    <span
-      className={cn("overflow-hidden whitespace-nowrap", open ? "max-w-[160px] opacity-100" : "max-w-0 opacity-0")}
-      style={{ transition: `max-width ${SIDEBAR_TRANSITION}, opacity ${SIDEBAR_TRANSITION}` }}
-    >
-      {children}
-    </span>
-  );
-}
 
 function SidebarLink({
   href,
@@ -122,20 +110,18 @@ function SectionLabel({ open, children }: { open: boolean; children: React.React
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { status, authEnabled } = useAuth();
+  const { status } = useAuth();
   const [open, setOpen] = React.useState(true);
   const [artifactIds, setArtifactIds] = React.useState<Record<string, string> | null>(null);
-  // Only ever set from the async workspace lookup below; the no-auth and
-  // not-yet-authenticated cases are pure derived values (no effect needed).
+  // Only ever set from the async workspace lookup below; the
+  // not-yet-authenticated case is a pure derived value (no effect needed).
   const [ownWorkspaceRunId, setOwnWorkspaceRunId] = React.useState<string | null>(null);
 
-  const needsOwnWorkspace = authEnabled === true && status === "authenticated";
-  const ownRunId =
-    authEnabled === false ? DEMO_RUN_ID : needsOwnWorkspace ? ownWorkspaceRunId : null;
+  const needsOwnWorkspace = status === "authenticated";
+  const ownRunId = needsOwnWorkspace ? ownWorkspaceRunId : null;
 
-  // In no-auth mode there is one canonical demo run for everyone (handled
-  // above, no fetch needed). In per-user mode, each caller has their own
-  // run, resolved via their workspace rather than a fixed ID.
+  // Each caller has their own run, resolved via their workspace rather than
+  // a fixed ID.
   React.useEffect(() => {
     if (!needsOwnWorkspace) {
       return;
@@ -190,23 +176,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const [section, pathRunId] = pathname.split("/").filter(Boolean);
   // Section links preserve whatever runId is in the current URL when on a
-  // run-scoped screen (this is always correct, per-user or not, since the
-  // URL itself already carries the caller's own run once they're on it),
-  // and fall back to the resolved own run everywhere else (e.g. the
-  // contextual /curriculum/* drill-down, which has no runId of its own).
+  // run-scoped screen (this is always correct since the URL itself already
+  // carries the caller's own run once they're on it), and fall back to the
+  // resolved own run everywhere else (e.g. the contextual /curriculum/*
+  // drill-down, which has no runId of its own). Null until the caller's own
+  // workspace has resolved.
   const runId =
     (section === "dashboard" || section === "orchestration") && pathRunId
       ? pathRunId
-      : (ownRunId ?? DEMO_RUN_ID);
+      : ownRunId;
 
   const knowledgeMapId = artifactIds?.knowledge_map_id;
   const assessmentId = artifactIds?.assessment_id;
   const curriculumId = artifactIds?.curriculum_id;
 
+  if (status === "loading") {
+    return <SplashScreen />;
+  }
+
+  if (status === "anonymous") {
+    return <div className="flex min-h-screen items-center justify-center px-4 py-8">{children}</div>;
+  }
+
   return (
     <div className="flex min-h-screen">
       <aside
-        className={cn("bg-card sticky top-0 flex h-screen flex-none flex-col border-r", open ? "w-60" : "w-16")}
+        className={cn(
+          "bg-card sticky top-0 flex h-screen flex-none flex-col overflow-hidden border-r",
+          open ? "w-60" : "w-16"
+        )}
         style={{ transition: `width ${SIDEBAR_TRANSITION}` }}
       >
         <div className="flex h-14 flex-none items-center justify-between px-4">
@@ -224,14 +222,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        <nav className="flex flex-col gap-1 px-3 py-2">
-          <SidebarLink
-            href={`/dashboard/${runId}`}
-            icon={LayoutDashboard}
-            label="Dashboard"
-            active={section === "dashboard"}
-            open={open}
-          />
+        <nav className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-2">
+          {runId ? (
+            <SidebarLink
+              href={`/dashboard/${runId}`}
+              icon={LayoutDashboard}
+              label="Dashboard"
+              active={section === "dashboard"}
+              open={open}
+            />
+          ) : (
+            <SidebarLinkDisabled
+              icon={LayoutDashboard}
+              label="Dashboard"
+              open={open}
+              reason="Create a workspace to get started"
+            />
+          )}
           {knowledgeMapId ? (
             <SidebarLink
               href={`/knowledge-map/${knowledgeMapId}`}
@@ -280,13 +287,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               reason="Not available yet"
             />
           )}
-          <SidebarLink
-            href={`/orchestration/${runId}`}
-            icon={Workflow}
-            label="Orchestration"
-            active={section === "orchestration"}
-            open={open}
-          />
+          {runId ? (
+            <SidebarLink
+              href={`/orchestration/${runId}`}
+              icon={Workflow}
+              label="Orchestration"
+              active={section === "orchestration"}
+              open={open}
+            />
+          ) : (
+            <SidebarLinkDisabled
+              icon={Workflow}
+              label="Orchestration"
+              open={open}
+              reason="Create a workspace to get started"
+            />
+          )}
 
           <SectionLabel open={open}>Coming soon</SectionLabel>
           {COMING_SOON_LINKS.map(({ label, icon }) => (
@@ -298,11 +314,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             floating indicator fixed to the viewport's bottom-left corner,
             which would otherwise sit on top of and intercept clicks on
             whatever sidebar control lives there. */}
-        <div className="border-border/60 mx-3 mt-1 flex-none border-t px-0 py-3">
+        <div className="border-border/60 mx-3 mt-1 flex flex-none flex-col gap-1 border-t px-0 py-3">
+          <ThemeToggle open={open} />
           <AuthStatus open={open} />
-          <div className="mt-1">
-            <ThemeToggle />
-          </div>
         </div>
       </aside>
 

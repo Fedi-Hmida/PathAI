@@ -4,6 +4,7 @@ import * as React from "react";
 import { useParams } from "next/navigation";
 import { CheckCircle2, Link2, ShieldAlert } from "lucide-react";
 
+import { RequireAuth } from "@/components/auth/require-auth";
 import { AdaptationBanner } from "@/components/dashboard/adaptation-banner";
 import { CurriculumWeekList } from "@/components/dashboard/curriculum-week-list";
 import { KnowledgeMapCard } from "@/components/dashboard/knowledge-map-card";
@@ -66,6 +67,14 @@ function formatScore(score: number | null | undefined): string {
 }
 
 export default function DashboardPage() {
+  return (
+    <RequireAuth>
+      <DashboardView />
+    </RequireAuth>
+  );
+}
+
+function DashboardView() {
   const params = useParams<{ runId: string }>();
   const runId = params.runId;
   const [loadedRunId, setLoadedRunId] = React.useState(runId);
