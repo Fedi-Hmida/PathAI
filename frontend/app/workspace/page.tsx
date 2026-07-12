@@ -7,6 +7,7 @@ import { RequireAuth } from "@/components/auth/require-auth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getMyAssessment, startAssessment } from "@/lib/api/assessment";
 import { ApiError } from "@/lib/api/client";
 import { createMyWorkspace, getMyWorkspace, resetMyWorkspace } from "@/lib/api/workspace";
 
@@ -21,8 +22,12 @@ export default function WorkspacePage() {
 type ViewState =
   | { kind: "loading" }
   | { kind: "empty" }
-  | { kind: "has_workspace"; runId: string }
+  | { kind: "has_workspace"; runId: string; assessmentInProgressId: string | null }
   | { kind: "error"; message: string };
+
+function errorMessage(error: unknown): string {
+  return error instanceof ApiError ? error.message : "Unable to reach the PathAI backend.";
+}
 
 function WorkspaceView() {
   const router = useRouter();
@@ -31,33 +36,54 @@ function WorkspaceView() {
 
   React.useEffect(() => {
     let cancelled = false;
-    getMyWorkspace()
-      .then((workspace) => {
+
+    (async () => {
+      try {
+        const workspace = await getMyWorkspace();
         if (cancelled) {
           return;
         }
-        setState(workspace ? { kind: "has_workspace", runId: workspace.run_id } : { kind: "empty" });
-      })
-      .catch((error: unknown) => {
+        if (!workspace) {
+          setState({ kind: "empty" });
+          return;
+        }
+        // A page reload/return visit mid-diagnostic should offer to resume it
+        // rather than send the learner straight to a dashboard whose
+        // assessment summary is still empty.
+        const assessment = await getMyAssessment();
         if (cancelled) {
           return;
         }
-        const message = error instanceof ApiError ? error.message : "Unable to reach the PathAI backend.";
-        setState({ kind: "error", message });
-      });
+        setState({
+          kind: "has_workspace",
+          runId: workspace.run_id,
+          assessmentInProgressId:
+            assessment?.status === "in_progress" ? assessment.assessment_session_id : null,
+        });
+      } catch (error) {
+        if (!cancelled) {
+          setState({ kind: "error", message: errorMessage(error) });
+        }
+      }
+    })();
+
     return () => {
       cancelled = true;
     };
   }, []);
 
+  async function goToLiveAssessment() {
+    const session = await startAssessment();
+    router.replace(`/assessment/live/${session.assessment_session_id}`);
+  }
+
   async function handleCreate() {
     setBusy(true);
     try {
-      const workspace = await createMyWorkspace();
-      router.replace(`/dashboard/${workspace.run_id}`);
+      await createMyWorkspace();
+      await goToLiveAssessment();
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : "Unable to reach the PathAI backend.";
-      setState({ kind: "error", message });
+      setState({ kind: "error", message: errorMessage(error) });
     } finally {
       setBusy(false);
     }
@@ -66,11 +92,10 @@ function WorkspaceView() {
   async function handleReset() {
     setBusy(true);
     try {
-      const workspace = await resetMyWorkspace();
-      router.replace(`/dashboard/${workspace.run_id}`);
+      await resetMyWorkspace();
+      await goToLiveAssessment();
     } catch (error) {
-      const message = error instanceof ApiError ? error.message : "Unable to reach the PathAI backend.";
-      setState({ kind: "error", message });
+      setState({ kind: "error", message: errorMessage(error) });
     } finally {
       setBusy(false);
     }
@@ -100,7 +125,8 @@ function WorkspaceView() {
           <CardContent className="flex flex-col gap-4">
             <p className="text-muted-foreground text-sm">
               Create your own private learning workspace, seeded from the PathAI demo
-              curriculum. It belongs only to you.
+              curriculum. It belongs only to you. You&apos;ll start with a short diagnostic
+              assessment.
             </p>
             <Button onClick={handleCreate} disabled={busy} className="w-fit">
               {busy ? "Creating..." : "Create my workspace"}
@@ -119,9 +145,20 @@ function WorkspaceView() {
               Resetting replaces your workspace with a fresh copy and cannot be undone.
             </p>
             <div className="flex gap-3">
-              <Button onClick={() => router.replace(`/dashboard/${state.runId}`)} className="w-fit">
-                Go to my dashboard
-              </Button>
+              {state.assessmentInProgressId ? (
+                <Button
+                  onClick={() =>
+                    router.replace(`/assessment/live/${state.assessmentInProgressId}`)
+                  }
+                  className="w-fit"
+                >
+                  Continue my assessment
+                </Button>
+              ) : (
+                <Button onClick={() => router.replace(`/dashboard/${state.runId}`)} className="w-fit">
+                  Go to my dashboard
+                </Button>
+              )}
               <Button variant="outline" onClick={handleReset} disabled={busy} className="w-fit">
                 {busy ? "Resetting..." : "Reset my workspace"}
               </Button>

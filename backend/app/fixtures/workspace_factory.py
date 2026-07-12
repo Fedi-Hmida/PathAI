@@ -24,7 +24,6 @@ from pydantic import BaseModel
 
 from app.fixtures import canonical_demo as demo
 from app.schemas.adaptation import AdaptationEventDTO
-from app.schemas.assessment import AssessmentAnswerDTO, AssessmentSessionDTO
 from app.schemas.critic import CriticReviewDTO
 from app.schemas.curriculum import CurriculumDTO
 from app.schemas.enums import OrchestrationRunStatus
@@ -55,8 +54,6 @@ def _is_workspace_id_field(field_name: str) -> bool:
 class WorkspaceBundle:
     goal: LearningGoalDTO
     run: OrchestrationRunDTO
-    assessment_session: AssessmentSessionDTO
-    assessment_answers: list[AssessmentAnswerDTO]
     knowledge_map: KnowledgeMapDTO
     curriculum: CurriculumDTO
     resource_attachments: list[ResourceAttachmentDTO]
@@ -79,10 +76,15 @@ class WorkspaceBundle:
 def build_user_workspace(owner_user_id: UserId) -> WorkspaceBundle:
     """Return a fully re-IDed, owner-stamped clone of the canonical demo."""
     source_run = _source_run()
+    # No assessment session/answers here: a freshly seeded workspace has no
+    # assessment session at all - the learner takes a real, live one via
+    # POST /me/assessment/start. demo.KNOWLEDGE_MAP.assessment_session_id
+    # still gets collected below (its own field triggers collection) and
+    # consistently re-IDed, even though nothing is cloned under that ID - a
+    # dangling reference DashboardService already tolerates.
     single_sources: list[BaseModel] = [
         demo.LEARNING_GOAL,
         source_run,
-        demo.ASSESSMENT_SESSION,
         demo.KNOWLEDGE_MAP,
         demo.CURRICULUM,
         demo.PROGRESS_STATE,
@@ -92,7 +94,7 @@ def build_user_workspace(owner_user_id: UserId) -> WorkspaceBundle:
         demo.CRITIC_REVIEW,
         demo.EVALUATION_REPORT,
     ]
-    list_sources: list[BaseModel] = [*demo.ASSESSMENT_ANSWERS, *demo.RESOURCE_ATTACHMENTS]
+    list_sources: list[BaseModel] = [*demo.RESOURCE_ATTACHMENTS]
 
     found: set[str] = set()
     for dto in [*single_sources, *list_sources]:
@@ -102,8 +104,6 @@ def build_user_workspace(owner_user_id: UserId) -> WorkspaceBundle:
     return WorkspaceBundle(
         goal=_rebuild(demo.LEARNING_GOAL, id_map, owner_user_id=owner_user_id),
         run=_rebuild(source_run, id_map, owner_user_id=owner_user_id),
-        assessment_session=_rebuild(demo.ASSESSMENT_SESSION, id_map),
-        assessment_answers=[_rebuild(a, id_map) for a in demo.ASSESSMENT_ANSWERS],
         knowledge_map=_rebuild(demo.KNOWLEDGE_MAP, id_map),
         curriculum=_rebuild(demo.CURRICULUM, id_map),
         resource_attachments=[_rebuild(a, id_map) for a in demo.RESOURCE_ATTACHMENTS],

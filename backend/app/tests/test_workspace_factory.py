@@ -95,8 +95,6 @@ def test_no_canonical_workspace_id_survives_anywhere_in_the_clone() -> None:
         [
             ws.goal.model_dump(mode="json"),
             ws.run.model_dump(mode="json"),
-            ws.assessment_session.model_dump(mode="json"),
-            *[a.model_dump(mode="json") for a in ws.assessment_answers],
             ws.knowledge_map.model_dump(mode="json"),
             ws.curriculum.model_dump(mode="json"),
             *[a.model_dump(mode="json") for a in ws.resource_attachments],

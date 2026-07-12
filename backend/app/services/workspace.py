@@ -7,7 +7,6 @@ from app.fixtures.workspace_factory import WorkspaceBundle, build_user_workspace
 from app.repositories.errors import DuplicateRecordError
 from app.repositories.protocols import (
     AdaptationRepository,
-    AssessmentRepository,
     CriticReviewRepository,
     CurriculumRepository,
     EvaluationRepository,
@@ -19,6 +18,7 @@ from app.repositories.protocols import (
     ResourceRepository,
 )
 from app.schemas.auth import UserDTO
+from app.schemas.goal import LearningGoalDTO
 from app.schemas.ids import RunId
 
 
@@ -33,7 +33,6 @@ class WorkspaceService:
 
     goals: GoalRepository
     orchestration_runs: OrchestrationRunRepository
-    assessments: AssessmentRepository
     knowledge_maps: KnowledgeMapRepository
     curricula: CurriculumRepository
     resources: ResourceRepository
@@ -46,6 +45,9 @@ class WorkspaceService:
     def get_run_id(self, user: UserDTO) -> RunId | None:
         goal = self.goals.find_by_owner(user.user_id)
         return goal.run_id if goal is not None else None
+
+    def get_owned_goal(self, user: UserDTO) -> LearningGoalDTO | None:
+        return self.goals.find_by_owner(user.user_id)
 
     def seed(self, user: UserDTO) -> RunId:
         if self.goals.find_by_owner(user.user_id) is not None:
@@ -70,9 +72,6 @@ class WorkspaceService:
         self._ensure_corpus()
         self.goals.create(bundle.goal)
         self.orchestration_runs.create(bundle.run)
-        self.assessments.create_session(bundle.assessment_session)
-        for answer in bundle.assessment_answers:
-            self.assessments.create_answer(answer)
         self.knowledge_maps.create(bundle.knowledge_map)
         self.curricula.create(bundle.curriculum)
         for attachment in bundle.resource_attachments:

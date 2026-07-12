@@ -12,6 +12,7 @@ from app.api.v1 import (
     goal,
     health,
     knowledge_map,
+    me_assessment,
     orchestration,
     progress,
     quiz,
@@ -24,6 +25,7 @@ api_router.include_router(health.router)
 api_router.include_router(auth.public_router)
 api_router.include_router(auth.router)
 api_router.include_router(workspace.router)
+api_router.include_router(me_assessment.router)
 api_router.include_router(goal.router)
 api_router.include_router(assessment.router)
 api_router.include_router(knowledge_map.router)

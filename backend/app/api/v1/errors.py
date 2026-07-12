@@ -3,6 +3,11 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.orchestration.assessment_agent_gateway import (
+    AgentError,
+    AssessmentQuestionMismatchError,
+    AssessmentSessionNotActiveError,
+)
 from app.repositories.errors import DuplicateRecordError, NotFoundError, RepositoryError
 from app.services.auth import (
     EmailAlreadyRegisteredError,
@@ -63,3 +68,27 @@ def register_api_exception_handlers(app: FastAPI) -> None:
         _error: WorkspaceExistsError,
     ) -> JSONResponse:
         return JSONResponse(status_code=409, content={"detail": "workspace already exists"})
+
+    @app.exception_handler(AssessmentSessionNotActiveError)
+    async def assessment_session_not_active_handler(
+        _request: Request,
+        _error: AssessmentSessionNotActiveError,
+    ) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": "assessment session is not active"})
+
+    @app.exception_handler(AssessmentQuestionMismatchError)
+    async def assessment_question_mismatch_handler(
+        _request: Request,
+        _error: AssessmentQuestionMismatchError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={"detail": "submitted answer does not match the current question"},
+        )
+
+    @app.exception_handler(AgentError)
+    async def agent_error_handler(
+        _request: Request,
+        _error: AgentError,
+    ) -> JSONResponse:
+        return JSONResponse(status_code=502, content={"detail": "agent execution failed"})

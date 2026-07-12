@@ -10,6 +10,10 @@ from fastapi import Depends, HTTPException, Request
 from app.api.v1.responses import DemoLoadFixturesResponse
 from app.core.settings import Settings, get_settings
 from app.fixtures import canonical_demo as demo
+from app.orchestration.assessment_agent_gateway import (
+    AssessmentAgentService,
+    build_assessment_agent_service,
+)
 from app.orchestration.runner import run_straight_line_demo_from_container
 from app.repositories.factory import build_repository_set
 from app.repositories.protocols import (
@@ -133,7 +137,6 @@ class ApiServiceContainer:
         self.workspace_service = WorkspaceService(
             goals=self.goal_repository,
             orchestration_runs=self.orchestration_run_repository,
-            assessments=self.assessment_repository,
             knowledge_maps=self.knowledge_map_repository,
             curricula=self.curriculum_repository,
             resources=self.resource_repository,
@@ -363,6 +366,19 @@ def get_workspace_service(container: ApiContainerDependency) -> WorkspaceService
 
 
 WorkspaceServiceDependency = Annotated[WorkspaceService, Depends(get_workspace_service)]
+
+
+def get_assessment_agent_service(
+    container: ApiContainerDependency,
+    settings: SettingsDependency,
+) -> AssessmentAgentService:
+    return build_assessment_agent_service(container, settings)
+
+
+AssessmentAgentServiceDependency = Annotated[
+    AssessmentAgentService,
+    Depends(get_assessment_agent_service),
+]
 
 
 def _bearer_token(request: Request) -> str | None:

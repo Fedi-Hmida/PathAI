@@ -45,6 +45,7 @@ class AssessmentAnswerDTO(TimestampedDTO, VersionedDTO):
     question: AssessmentQuestionDTO
     answer_text: str | None = Field(default=None, max_length=1200)
     selected_options: list[str] = Field(default_factory=list, max_length=8)
+    self_rating: int | None = Field(default=None, ge=1, le=5)
     score: Score
     concept_scores: list[ConceptEvidenceUpdate] = Field(default_factory=list)
     feedback: str | None = Field(default=None, max_length=800)
@@ -58,6 +59,7 @@ class AssessmentSessionDTO(TimestampedDTO, VersionedDTO):
     question_count: int = Field(ge=0, le=20)
     confidence: Score
     concept_evidence: list[ConceptEvidence] = Field(default_factory=list)
+    current_question: AssessmentQuestionDTO | None = None
     started_at: datetime
     completed_at: datetime | None = None
     termination_reason: str | None = Field(default=None, max_length=200)
@@ -84,3 +86,8 @@ class AssessmentScoreOutput(BaseSchema):
     concept_scores: list[ConceptEvidenceUpdate] = Field(min_length=1)
     feedback: str = Field(min_length=1, max_length=800)
     confidence_after_answer: Score
+
+
+class AssessmentAnswerResponse(BaseSchema):
+    session: AssessmentSessionDTO
+    answer: AssessmentAnswerDTO
