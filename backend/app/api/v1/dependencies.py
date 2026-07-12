@@ -15,6 +15,10 @@ from app.orchestration.assessment_agent_gateway import (
     build_assessment_agent_service,
 )
 from app.orchestration.runner import run_straight_line_demo_from_container
+from app.orchestration.workspace_generation_gateway import (
+    WorkspaceGenerationService,
+    build_workspace_generation_service,
+)
 from app.repositories.factory import build_repository_set
 from app.repositories.protocols import (
     AdaptationRepository,
@@ -378,6 +382,19 @@ def get_assessment_agent_service(
 AssessmentAgentServiceDependency = Annotated[
     AssessmentAgentService,
     Depends(get_assessment_agent_service),
+]
+
+
+def get_workspace_generation_service(
+    container: ApiContainerDependency,
+    settings: SettingsDependency,
+) -> WorkspaceGenerationService:
+    return build_workspace_generation_service(container, settings)
+
+
+WorkspaceGenerationServiceDependency = Annotated[
+    WorkspaceGenerationService,
+    Depends(get_workspace_generation_service),
 ]
 
 

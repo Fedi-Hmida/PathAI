@@ -34,10 +34,22 @@ def _auth_header(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _create_workspace(
+    client: TestClient,
+    token: str,
+    goal_text: str = "Learn classical guitar for a wedding performance",
+):
+    return client.post(
+        "/api/v1/me/workspace",
+        headers=_auth_header(token),
+        json={"goal_text": goal_text},
+    )
+
+
 def test_fresh_workspace_has_no_assessment_session(auth_enabled_app: None) -> None:
     client = TestClient(create_app())
     token = _register(client, "learner@example.com")
-    client.post("/api/v1/me/workspace", headers=_auth_header(token))
+    _create_workspace(client, token)
 
     response = client.get("/api/v1/me/assessment", headers=_auth_header(token))
 
@@ -49,10 +61,7 @@ def test_dashboard_for_a_fresh_workspace_has_no_assessment_summary(
 ) -> None:
     client = TestClient(create_app())
     token = _register(client, "learner@example.com")
-    run_id = client.post(
-        "/api/v1/me/workspace",
-        headers=_auth_header(token),
-    ).json()["run_id"]
+    run_id = _create_workspace(client, token).json()["run_id"]
 
     dashboard = client.get(f"/api/v1/dashboard/{run_id}", headers=_auth_header(token))
 
@@ -65,7 +74,7 @@ def test_start_then_full_turn_by_turn_sequence_reaches_completed(
 ) -> None:
     client = TestClient(create_app())
     token = _register(client, "learner@example.com")
-    client.post("/api/v1/me/workspace", headers=_auth_header(token))
+    _create_workspace(client, token)
 
     start_response = client.post("/api/v1/me/assessment/start", headers=_auth_header(token))
     assert start_response.status_code == 201
@@ -101,7 +110,7 @@ def test_start_then_full_turn_by_turn_sequence_reaches_completed(
 def test_start_is_idempotent_over_http(auth_enabled_app: None) -> None:
     client = TestClient(create_app())
     token = _register(client, "learner@example.com")
-    client.post("/api/v1/me/workspace", headers=_auth_header(token))
+    _create_workspace(client, token)
 
     first = client.post("/api/v1/me/assessment/start", headers=_auth_header(token))
     second = client.post("/api/v1/me/assessment/start", headers=_auth_header(token))
@@ -122,8 +131,8 @@ def test_non_owner_cannot_answer_someone_elses_assessment(auth_enabled_app: None
     client = TestClient(create_app())
     token_a = _register(client, "alice@example.com")
     token_b = _register(client, "bob@example.com")
-    client.post("/api/v1/me/workspace", headers=_auth_header(token_a))
-    client.post("/api/v1/me/workspace", headers=_auth_header(token_b))
+    _create_workspace(client, token_a)
+    _create_workspace(client, token_b)
 
     session_a = client.post(
         "/api/v1/me/assessment/start",

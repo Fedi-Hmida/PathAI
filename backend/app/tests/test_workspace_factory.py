@@ -23,10 +23,11 @@ _CANONICAL_WORKSPACE_IDS = {
 
 OWNER_A = "user_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 OWNER_B = "user_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+GOAL_TEXT = "Learn watercolor painting for a small gallery show"
 
 
 def test_workspace_ids_differ_from_canonical_demo() -> None:
-    ws = build_user_workspace(OWNER_A)
+    ws = build_user_workspace(OWNER_A, goal_text=GOAL_TEXT)
 
     assert ws.goal.goal_id != demo.GOAL_ID
     assert ws.run.run_id != demo.RUN_ID
@@ -38,16 +39,24 @@ def test_workspace_ids_differ_from_canonical_demo() -> None:
     assert ws.knowledge_map.knowledge_map_id.startswith("kmap_")
 
 
+def test_goal_text_is_the_callers_own_not_the_demos() -> None:
+    ws = build_user_workspace(OWNER_A, goal_text=GOAL_TEXT)
+
+    assert ws.goal.goal_text == GOAL_TEXT
+    assert ws.goal.goal_text != demo.LEARNING_GOAL.goal_text
+    assert GOAL_TEXT in ws.goal.normalized_goal_text
+
+
 def test_owner_is_stamped_on_roots_only() -> None:
-    ws = build_user_workspace(OWNER_A)
+    ws = build_user_workspace(OWNER_A, goal_text=GOAL_TEXT)
 
     assert ws.goal.owner_user_id == OWNER_A
     assert ws.run.owner_user_id == OWNER_A
 
 
 def test_two_workspaces_never_share_workspace_ids() -> None:
-    a = build_user_workspace(OWNER_A)
-    b = build_user_workspace(OWNER_B)
+    a = build_user_workspace(OWNER_A, goal_text=GOAL_TEXT)
+    b = build_user_workspace(OWNER_B, goal_text=GOAL_TEXT)
 
     assert a.goal.goal_id != b.goal.goal_id
     assert a.run.run_id != b.run.run_id
@@ -56,7 +65,7 @@ def test_two_workspaces_never_share_workspace_ids() -> None:
 
 
 def test_cross_references_stay_internally_consistent() -> None:
-    ws = build_user_workspace(OWNER_A)
+    ws = build_user_workspace(OWNER_A, goal_text=GOAL_TEXT)
 
     # The whole graph must point at this workspace's own goal/run/curriculum.
     assert ws.run.goal_id == ws.goal.goal_id
@@ -77,7 +86,7 @@ def test_cross_references_stay_internally_consistent() -> None:
 
 
 def test_resource_attachments_point_at_this_curriculum_but_shared_corpus() -> None:
-    ws = build_user_workspace(OWNER_A)
+    ws = build_user_workspace(OWNER_A, goal_text=GOAL_TEXT)
     canonical_resource_ids = {resource.resource_id for resource in demo.RESOURCE_CORPUS}
 
     for attachment in ws.resource_attachments:
@@ -89,7 +98,7 @@ def test_resource_attachments_point_at_this_curriculum_but_shared_corpus() -> No
 
 
 def test_no_canonical_workspace_id_survives_anywhere_in_the_clone() -> None:
-    ws = build_user_workspace(OWNER_A)
+    ws = build_user_workspace(OWNER_A, goal_text=GOAL_TEXT)
 
     blob = json.dumps(
         [
@@ -112,7 +121,7 @@ def test_no_canonical_workspace_id_survives_anywhere_in_the_clone() -> None:
 
 
 def test_enum_values_and_node_names_are_not_rewritten() -> None:
-    ws = build_user_workspace(OWNER_A)
+    ws = build_user_workspace(OWNER_A, goal_text=GOAL_TEXT)
 
     # A prior naive implementation rewrote strings that merely shared an ID
     # prefix. The adaptation trigger enum and the run's node names must be
@@ -130,7 +139,7 @@ def test_enum_values_and_node_names_are_not_rewritten() -> None:
 
 
 def test_concept_ids_and_topic_links_survive_cloning() -> None:
-    ws = build_user_workspace(OWNER_A)
+    ws = build_user_workspace(OWNER_A, goal_text=GOAL_TEXT)
     canonical_concepts = {concept.concept_id for concept in demo.KNOWLEDGE_MAP.concepts}
 
     # Concept vocabulary is shared and must be preserved verbatim.

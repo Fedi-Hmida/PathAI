@@ -7,9 +7,13 @@ import { RequireAuth } from "@/components/auth/require-auth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { getMyAssessment, startAssessment } from "@/lib/api/assessment";
 import { ApiError } from "@/lib/api/client";
 import { createMyWorkspace, getMyWorkspace, resetMyWorkspace } from "@/lib/api/workspace";
+
+const MIN_GOAL_LENGTH = 5;
+const MAX_GOAL_LENGTH = 500;
 
 export default function WorkspacePage() {
   return (
@@ -33,6 +37,10 @@ function WorkspaceView() {
   const router = useRouter();
   const [state, setState] = React.useState<ViewState>({ kind: "loading" });
   const [busy, setBusy] = React.useState(false);
+  const [goalText, setGoalText] = React.useState("");
+  const [resetGoalText, setResetGoalText] = React.useState("");
+  const goalTextValid = goalText.trim().length >= MIN_GOAL_LENGTH;
+  const resetGoalTextValid = resetGoalText.trim().length >= MIN_GOAL_LENGTH;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -78,9 +86,12 @@ function WorkspaceView() {
   }
 
   async function handleCreate() {
+    if (!goalTextValid) {
+      return;
+    }
     setBusy(true);
     try {
-      await createMyWorkspace();
+      await createMyWorkspace(goalText.trim());
       await goToLiveAssessment();
     } catch (error) {
       setState({ kind: "error", message: errorMessage(error) });
@@ -90,9 +101,12 @@ function WorkspaceView() {
   }
 
   async function handleReset() {
+    if (!resetGoalTextValid) {
+      return;
+    }
     setBusy(true);
     try {
-      await resetMyWorkspace();
+      await resetMyWorkspace(resetGoalText.trim());
       await goToLiveAssessment();
     } catch (error) {
       setState({ kind: "error", message: errorMessage(error) });
@@ -124,11 +138,23 @@ function WorkspaceView() {
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <p className="text-muted-foreground text-sm">
-              Create your own private learning workspace, seeded from the PathAI demo
-              curriculum. It belongs only to you. You&apos;ll start with a short diagnostic
-              assessment.
+              What do you want to learn? Create your own private learning workspace built
+              around your goal. You&apos;ll start with a short diagnostic assessment, then get
+              a knowledge map and curriculum generated just for you.
             </p>
-            <Button onClick={handleCreate} disabled={busy} className="w-fit">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="goal-text" className="text-sm font-medium">
+                Your learning goal
+              </label>
+              <Textarea
+                id="goal-text"
+                placeholder="e.g. Learn classical guitar well enough to play at a friend's wedding in 3 months"
+                value={goalText}
+                maxLength={MAX_GOAL_LENGTH}
+                onChange={(event) => setGoalText(event.target.value)}
+              />
+            </div>
+            <Button onClick={handleCreate} disabled={busy || !goalTextValid} className="w-fit">
               {busy ? "Creating..." : "Create my workspace"}
             </Button>
           </CardContent>
@@ -141,9 +167,6 @@ function WorkspaceView() {
             <CardTitle>You already have a workspace</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <p className="text-muted-foreground text-sm">
-              Resetting replaces your workspace with a fresh copy and cannot be undone.
-            </p>
             <div className="flex gap-3">
               {state.assessmentInProgressId ? (
                 <Button
@@ -159,7 +182,31 @@ function WorkspaceView() {
                   Go to my dashboard
                 </Button>
               )}
-              <Button variant="outline" onClick={handleReset} disabled={busy} className="w-fit">
+            </div>
+
+            <div className="border-border/60 flex flex-col gap-3 border-t pt-4">
+              <p className="text-muted-foreground text-sm">
+                Want to start over with a different goal? Resetting replaces your workspace
+                with a fresh one and cannot be undone.
+              </p>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="reset-goal-text" className="text-sm font-medium">
+                  New learning goal
+                </label>
+                <Textarea
+                  id="reset-goal-text"
+                  placeholder="e.g. Learn classical guitar well enough to play at a friend's wedding in 3 months"
+                  value={resetGoalText}
+                  maxLength={MAX_GOAL_LENGTH}
+                  onChange={(event) => setResetGoalText(event.target.value)}
+                />
+              </div>
+              <Button
+                variant="outline"
+                onClick={handleReset}
+                disabled={busy || !resetGoalTextValid}
+                className="w-fit"
+              >
                 {busy ? "Resetting..." : "Reset my workspace"}
               </Button>
             </div>

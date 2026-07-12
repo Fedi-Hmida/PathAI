@@ -1,5 +1,5 @@
 import { apiGet, apiPost, ApiError } from "@/lib/api/client";
-import type { WorkspaceRef } from "@/lib/types/workspace";
+import type { WorkspaceGenerationResult, WorkspaceRef } from "@/lib/types/workspace";
 
 export async function getMyWorkspace(): Promise<WorkspaceRef | null> {
   try {
@@ -12,10 +12,14 @@ export async function getMyWorkspace(): Promise<WorkspaceRef | null> {
   }
 }
 
-export function createMyWorkspace(): Promise<WorkspaceRef> {
-  return apiPost<WorkspaceRef>("/me/workspace");
+export function createMyWorkspace(goalText: string): Promise<WorkspaceRef> {
+  return apiPost<WorkspaceRef>("/me/workspace", { goal_text: goalText });
 }
 
-export function resetMyWorkspace(): Promise<WorkspaceRef> {
-  return apiPost<WorkspaceRef>("/me/workspace/reset");
+export function resetMyWorkspace(goalText: string): Promise<WorkspaceRef> {
+  return apiPost<WorkspaceRef>("/me/workspace/reset", { goal_text: goalText });
+}
+
+export function generateMyWorkspace(): Promise<WorkspaceGenerationResult> {
+  return apiPost<WorkspaceGenerationResult>("/me/workspace/generate");
 }

@@ -24,6 +24,7 @@ class CurriculumAgentService:
         *,
         critic_recommendations: list[str] | None = None,
         revision_attempt: int = 0,
+        curriculum_id: str | None = None,
     ) -> CurriculumDTO:
         recommendations = list(critic_recommendations or [])[:10]
         payload = CurriculumAgentInput(
@@ -40,7 +41,7 @@ class CurriculumAgentService:
             payload=self.agent.build_curriculum(payload),
         )
         curriculum = CurriculumDTO(
-            curriculum_id=demo.CURRICULUM_ID,
+            curriculum_id=curriculum_id or demo.CURRICULUM_ID,
             goal_id=goal.goal_id,
             knowledge_map_id=knowledge_map.knowledge_map_id,
             run_id=goal.run_id,
@@ -55,10 +56,11 @@ class CurriculumAgentService:
             created_at=demo.NOW,
             updated_at=demo.NOW,
         )
-        # A revision overwrites the existing curriculum in place (same ID, stable
-        # graph state) so the regenerated content actually replaces the draft the
-        # critic rejected. The first pass keeps its create-or-get idempotency.
-        if revision_attempt > 0:
+        # A revision, or an explicit per-user curriculum_id, overwrites the
+        # existing curriculum in place (same ID, stable graph state) rather
+        # than relying on create-or-get's first-write-wins idempotency, which
+        # only fits the single demo pipeline's first pass.
+        if revision_attempt > 0 or curriculum_id is not None:
             return self.curricula.save(curriculum)
         return create_or_get(
             create=self.curricula.create,

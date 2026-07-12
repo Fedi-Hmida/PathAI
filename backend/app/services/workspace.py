@@ -18,7 +18,7 @@ from app.repositories.protocols import (
     ResourceRepository,
 )
 from app.schemas.auth import UserDTO
-from app.schemas.goal import LearningGoalDTO
+from app.schemas.goal import LearnerProfile, LearningGoalDTO
 from app.schemas.ids import RunId
 
 
@@ -49,14 +49,28 @@ class WorkspaceService:
     def get_owned_goal(self, user: UserDTO) -> LearningGoalDTO | None:
         return self.goals.find_by_owner(user.user_id)
 
-    def seed(self, user: UserDTO) -> RunId:
+    def seed(
+        self,
+        user: UserDTO,
+        goal_text: str,
+        learner_profile: LearnerProfile | None = None,
+    ) -> RunId:
         if self.goals.find_by_owner(user.user_id) is not None:
             raise WorkspaceExistsError
-        bundle = build_user_workspace(user.user_id)
+        bundle = build_user_workspace(
+            user.user_id,
+            goal_text=goal_text,
+            learner_profile=learner_profile,
+        )
         self._persist(bundle)
         return bundle.run_id
 
-    def reset(self, user: UserDTO) -> RunId:
+    def reset(
+        self,
+        user: UserDTO,
+        goal_text: str,
+        learner_profile: LearnerProfile | None = None,
+    ) -> RunId:
         existing = self.goals.find_by_owner(user.user_id)
         if existing is not None:
             # Detach the two ownership roots. Every artifact authorizes through
@@ -64,7 +78,11 @@ class WorkspaceService:
             # (Cascade-deleting the orphaned artifacts is a documented follow-up.)
             self.orchestration_runs.delete(existing.run_id)
             self.goals.delete(existing.goal_id)
-        bundle = build_user_workspace(user.user_id)
+        bundle = build_user_workspace(
+            user.user_id,
+            goal_text=goal_text,
+            learner_profile=learner_profile,
+        )
         self._persist(bundle)
         return bundle.run_id
 

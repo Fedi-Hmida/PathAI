@@ -34,6 +34,30 @@ def _auth_header(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def _create_workspace(
+    client: TestClient,
+    token: str,
+    goal_text: str = "Learn watercolor painting for a small gallery show",
+):
+    return client.post(
+        "/api/v1/me/workspace",
+        headers=_auth_header(token),
+        json={"goal_text": goal_text},
+    )
+
+
+def _reset_workspace(
+    client: TestClient,
+    token: str,
+    goal_text: str = "Learn watercolor painting for a small gallery show",
+):
+    return client.post(
+        "/api/v1/me/workspace/reset",
+        headers=_auth_header(token),
+        json={"goal_text": goal_text},
+    )
+
+
 def test_new_user_has_no_workspace_until_created(auth_enabled_app: None) -> None:
     client = TestClient(create_app())
     token = _register(client, "learner@example.com")
@@ -47,7 +71,7 @@ def test_create_workspace_then_dashboard_is_populated(auth_enabled_app: None) ->
     client = TestClient(create_app())
     token = _register(client, "learner@example.com")
 
-    create_response = client.post("/api/v1/me/workspace", headers=_auth_header(token))
+    create_response = _create_workspace(client, token)
     assert create_response.status_code == 201
     run_id = create_response.json()["run_id"]
 
@@ -68,9 +92,9 @@ def test_creating_a_second_workspace_for_the_same_user_is_rejected(
 ) -> None:
     client = TestClient(create_app())
     token = _register(client, "learner@example.com")
-    client.post("/api/v1/me/workspace", headers=_auth_header(token))
+    _create_workspace(client, token)
 
-    second = client.post("/api/v1/me/workspace", headers=_auth_header(token))
+    second = _create_workspace(client, token)
 
     assert second.status_code == 409
 
@@ -82,8 +106,8 @@ def test_two_users_get_isolated_workspaces_and_cannot_read_each_others(
     token_a = _register(client, "alice@example.com")
     token_b = _register(client, "bob@example.com")
 
-    run_a = client.post("/api/v1/me/workspace", headers=_auth_header(token_a)).json()["run_id"]
-    run_b = client.post("/api/v1/me/workspace", headers=_auth_header(token_b)).json()["run_id"]
+    run_a = _create_workspace(client, token_a).json()["run_id"]
+    run_b = _create_workspace(client, token_b).json()["run_id"]
 
     assert run_a != run_b
 
@@ -109,12 +133,9 @@ def test_two_users_get_isolated_workspaces_and_cannot_read_each_others(
 def test_reset_replaces_workspace_with_a_fresh_one(auth_enabled_app: None) -> None:
     client = TestClient(create_app())
     token = _register(client, "learner@example.com")
-    original_run_id = client.post(
-        "/api/v1/me/workspace",
-        headers=_auth_header(token),
-    ).json()["run_id"]
+    original_run_id = _create_workspace(client, token).json()["run_id"]
 
-    reset_response = client.post("/api/v1/me/workspace/reset", headers=_auth_header(token))
+    reset_response = _reset_workspace(client, token, goal_text="Learn oil painting instead")
 
     assert reset_response.status_code == 200
     new_run_id = reset_response.json()["run_id"]

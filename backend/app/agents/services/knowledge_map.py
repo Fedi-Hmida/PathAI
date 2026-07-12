@@ -26,6 +26,8 @@ class KnowledgeMapAgentService:
         goal: LearningGoalDTO,
         assessment: AssessmentSessionDTO,
         answers: list[AssessmentAnswerDTO],
+        *,
+        knowledge_map_id: str | None = None,
     ) -> KnowledgeMapDTO:
         payload = KnowledgeMapAgentInput(
             goal_text=goal.goal_text,
@@ -38,7 +40,7 @@ class KnowledgeMapAgentService:
             payload=self.agent.build_knowledge_map(payload),
         )
         knowledge_map = KnowledgeMapDTO(
-            knowledge_map_id=demo.KNOWLEDGE_MAP_ID,
+            knowledge_map_id=knowledge_map_id or demo.KNOWLEDGE_MAP_ID,
             goal_id=goal.goal_id,
             assessment_session_id=assessment.assessment_session_id,
             run_id=goal.run_id,
@@ -53,6 +55,12 @@ class KnowledgeMapAgentService:
             created_at=demo.NOW,
             updated_at=demo.NOW,
         )
+        # An explicit ID means we're regenerating a workspace's own knowledge
+        # map in place (it already exists from workspace seeding), so this
+        # must overwrite rather than no-op on the first-write-wins semantics
+        # create_or_get uses for the single demo pipeline.
+        if knowledge_map_id is not None:
+            return self.knowledge_maps.save(knowledge_map)
         return create_or_get(
             create=self.knowledge_maps.create,
             get=self.knowledge_maps.get_by_id,

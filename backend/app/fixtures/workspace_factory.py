@@ -28,7 +28,7 @@ from app.schemas.critic import CriticReviewDTO
 from app.schemas.curriculum import CurriculumDTO
 from app.schemas.enums import OrchestrationRunStatus
 from app.schemas.evaluation import EvaluationReportDTO
-from app.schemas.goal import LearningGoalDTO
+from app.schemas.goal import LearnerProfile, LearningGoalDTO
 from app.schemas.ids import UserId
 from app.schemas.knowledge_map import KnowledgeMapDTO
 from app.schemas.orchestration import OrchestrationRunDTO
@@ -73,8 +73,18 @@ class WorkspaceBundle:
         return self.goal.goal_id
 
 
-def build_user_workspace(owner_user_id: UserId) -> WorkspaceBundle:
-    """Return a fully re-IDed, owner-stamped clone of the canonical demo."""
+def build_user_workspace(
+    owner_user_id: UserId,
+    *,
+    goal_text: str,
+    learner_profile: LearnerProfile | None = None,
+) -> WorkspaceBundle:
+    """Return a fully re-IDed, owner-stamped clone of the canonical demo,
+    with the caller's own goal text (and, optionally, learner profile)
+    substituted in place of the demo's. Everything else (knowledge map,
+    curriculum, quiz, critic review, evaluation) still starts as demo-clone
+    placeholder content until the live assessment completes and
+    `WorkspaceGenerationService` regenerates it for real."""
     source_run = _source_run()
     # No assessment session/answers here: a freshly seeded workspace has no
     # assessment session at all - the learner takes a real, live one via
@@ -101,8 +111,16 @@ def build_user_workspace(owner_user_id: UserId) -> WorkspaceBundle:
         _collect_ids(dto.model_dump(mode="json"), found)
     id_map = {old_id: _new_id(old_id) for old_id in found}
 
+    goal_overrides: dict[str, Any] = {
+        "owner_user_id": owner_user_id,
+        "goal_text": goal_text,
+        "normalized_goal_text": " ".join(goal_text.split()),
+    }
+    if learner_profile is not None:
+        goal_overrides["learner_profile"] = learner_profile.model_dump(mode="json")
+
     return WorkspaceBundle(
-        goal=_rebuild(demo.LEARNING_GOAL, id_map, owner_user_id=owner_user_id),
+        goal=_rebuild(demo.LEARNING_GOAL, id_map, **goal_overrides),
         run=_rebuild(source_run, id_map, owner_user_id=owner_user_id),
         knowledge_map=_rebuild(demo.KNOWLEDGE_MAP, id_map),
         curriculum=_rebuild(demo.CURRICULUM, id_map),

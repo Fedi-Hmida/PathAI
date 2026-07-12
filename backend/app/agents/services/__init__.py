@@ -16,6 +16,11 @@ from app.agents.services.knowledge_map import KnowledgeMapAgentService
 from app.agents.services.progress import ProgressAgentService
 from app.agents.services.quiz import QuizAgentService
 from app.agents.services.resource import ResourceAgentService
+from app.agents.services.workspace_generation import (
+    AssessmentNotCompleteError,
+    WorkspaceGenerationService,
+    WorkspaceNotSeededError,
+)
 
 __all__ = [
     "AdaptationAgentService",
@@ -23,6 +28,7 @@ __all__ = [
     "AgentServiceBundle",
     "AssessmentAgentMode",
     "AssessmentAgentService",
+    "AssessmentNotCompleteError",
     "CriticAgentService",
     "CurriculumAgentMode",
     "CurriculumAgentService",
@@ -33,5 +39,7 @@ __all__ = [
     "ProgressAgentService",
     "QuizAgentService",
     "ResourceAgentService",
+    "WorkspaceGenerationService",
+    "WorkspaceNotSeededError",
     "build_mock_agent_service_bundle",
 ]

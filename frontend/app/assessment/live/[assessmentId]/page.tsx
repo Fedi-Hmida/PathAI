@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getAssessment, submitAssessmentAnswer } from "@/lib/api/assessment";
 import { ApiError } from "@/lib/api/client";
 import { getGoal } from "@/lib/api/goal";
+import { generateMyWorkspace } from "@/lib/api/workspace";
 import type {
   AssessmentAnswerCreate,
   AssessmentAnswerDTO,
@@ -29,6 +30,11 @@ type LoadState =
   | { kind: "not_found" }
   | { kind: "error"; message: string }
   | { kind: "ready"; session: AssessmentSessionDTO; goalText: string; lastAnswer: AssessmentAnswerDTO | null };
+
+type GenerationState =
+  | { kind: "idle" }
+  | { kind: "generating" }
+  | { kind: "error"; message: string };
 
 export default function LiveAssessmentPage() {
   return (
@@ -46,6 +52,7 @@ function LiveAssessmentView() {
   const [loadedAssessmentId, setLoadedAssessmentId] = React.useState(assessmentId);
   const [state, setState] = React.useState<LoadState>({ kind: "loading" });
   const [submitting, setSubmitting] = React.useState(false);
+  const [generation, setGeneration] = React.useState<GenerationState>({ kind: "idle" });
 
   // Reset to loading during render when assessmentId changes, instead of
   // calling setState synchronously inside the effect body (React's
@@ -110,6 +117,18 @@ function LiveAssessmentView() {
     }
   }
 
+  async function handleGenerate(runId: string) {
+    setGeneration({ kind: "generating" });
+    try {
+      await generateMyWorkspace();
+      router.replace(`/dashboard/${runId}`);
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : "Unable to reach the PathAI backend.";
+      setGeneration({ kind: "error", message });
+    }
+  }
+
   if (state.kind === "loading") {
     return <LiveAssessmentSkeleton />;
   }
@@ -138,6 +157,7 @@ function LiveAssessmentView() {
   const { session, goalText, lastAnswer } = state;
 
   if (session.status === "completed") {
+    const generating = generation.kind === "generating";
     return (
       <div className="mx-auto flex max-w-lg flex-col gap-6">
         <Card>
@@ -148,11 +168,34 @@ function LiveAssessmentView() {
             <p className="text-muted-foreground text-sm">
               You answered {session.question_count} question
               {session.question_count === 1 ? "" : "s"} with {Math.round(session.confidence * 100)}%
-              overall confidence. Your dashboard is ready.
+              overall confidence. Let&apos;s build your personalized knowledge map and curriculum
+              from your answers.
             </p>
-            <Button onClick={() => router.replace(`/dashboard/${session.run_id}`)} className="w-fit">
-              Go to my dashboard
+
+            {generation.kind === "error" ? (
+              <Alert variant="destructive">
+                <AlertTitle>Couldn&apos;t generate your learning path</AlertTitle>
+                <AlertDescription>{generation.message}</AlertDescription>
+              </Alert>
+            ) : null}
+
+            <Button
+              onClick={() => handleGenerate(session.run_id)}
+              disabled={generating}
+              className="w-fit"
+            >
+              {generating ? "Generating your learning path..." : "Generate my learning path"}
             </Button>
+
+            {generation.kind === "error" ? (
+              <button
+                type="button"
+                onClick={() => router.replace(`/dashboard/${session.run_id}`)}
+                className="text-muted-foreground w-fit text-sm underline-offset-4 hover:underline"
+              >
+                Skip for now and view my dashboard
+              </button>
+            ) : null}
           </CardContent>
         </Card>
       </div>
