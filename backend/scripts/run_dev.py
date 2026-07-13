@@ -34,6 +34,11 @@ def load_env_file(path: Path) -> None:
 
 def main() -> None:
     load_env_file(ENV_FILE)
+    # Accounts are always required in this product now (no more no-auth demo
+    # mode) - these are the local-dev defaults that make `make api` actually
+    # match that decision. An explicit value in .env still wins (setdefault).
+    os.environ.setdefault("PATHAI_ENABLE_AUTH", "true")
+    os.environ.setdefault("REFRESH_COOKIE_SECURE", "false")
     import uvicorn
 
     uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
