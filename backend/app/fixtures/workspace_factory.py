@@ -26,7 +26,7 @@ from app.fixtures import canonical_demo as demo
 from app.schemas.adaptation import AdaptationEventDTO
 from app.schemas.critic import CriticReviewDTO
 from app.schemas.curriculum import CurriculumDTO
-from app.schemas.enums import OrchestrationRunStatus
+from app.schemas.enums import DifficultyLevel, OrchestrationRunStatus
 from app.schemas.evaluation import EvaluationReportDTO
 from app.schemas.goal import LearnerProfile, LearningGoalDTO
 from app.schemas.ids import UserId
@@ -115,9 +115,14 @@ def build_user_workspace(
         "owner_user_id": owner_user_id,
         "goal_text": goal_text,
         "normalized_goal_text": " ".join(goal_text.split()),
+        # Never silently keep the demo's own learner_profile (its weak_areas
+        # are RAG-specific terms that poison downstream concept selection -
+        # see diagnostic_focus_for_goal) - default to a neutral one whenever
+        # the caller doesn't supply their own.
+        "learner_profile": (learner_profile or _neutral_learner_profile(goal_text)).model_dump(
+            mode="json"
+        ),
     }
-    if learner_profile is not None:
-        goal_overrides["learner_profile"] = learner_profile.model_dump(mode="json")
 
     return WorkspaceBundle(
         goal=_rebuild(demo.LEARNING_GOAL, id_map, **goal_overrides),
@@ -231,3 +236,23 @@ def _rebuild(dto: ModelT, id_map: dict[str, str], **overrides: Any) -> ModelT:
     data = _remap_ids(dto.model_dump(mode="json"), id_map)
     data.update(overrides)
     return type(dto).model_validate(data)
+
+
+def _neutral_learner_profile(goal_text: str) -> LearnerProfile:
+    """A topic-neutral default for callers who don't supply their own profile.
+
+    Deliberately empty ``strengths``/``weak_areas`` - the demo's own values
+    (``vector_search``, ``chunking``, ``retrieval_evaluation``, ...) would
+    otherwise leak RAG-specific vocabulary into every workspace's diagnostic
+    concept selection (``diagnostic_focus_for_goal`` matches "retrieval" as a
+    substring of "retrieval_evaluation"), regardless of the actual goal.
+    """
+    return LearnerProfile(
+        learner_type="learner",
+        strengths=[],
+        weak_areas=[],
+        time_availability_hours_per_week=demo.LEARNING_GOAL.learner_profile.time_availability_hours_per_week,
+        desired_outcome=f"Make real progress on: {goal_text}"[:300],
+        preferred_resource_types=list(demo.LEARNING_GOAL.learner_profile.preferred_resource_types),
+        difficulty_target=DifficultyLevel.INTERMEDIATE,
+    )

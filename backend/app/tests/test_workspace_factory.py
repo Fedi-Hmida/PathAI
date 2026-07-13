@@ -47,6 +47,14 @@ def test_goal_text_is_the_callers_own_not_the_demos() -> None:
     assert GOAL_TEXT in ws.goal.normalized_goal_text
 
 
+def test_learner_profile_defaults_to_neutral_not_the_demos_rag_specific_one() -> None:
+    ws = build_user_workspace(OWNER_A, goal_text=GOAL_TEXT)
+
+    assert ws.goal.learner_profile.weak_areas == []
+    assert ws.goal.learner_profile.strengths == []
+    assert ws.goal.learner_profile.weak_areas != demo.LEARNING_GOAL.learner_profile.weak_areas
+
+
 def test_owner_is_stamped_on_roots_only() -> None:
     ws = build_user_workspace(OWNER_A, goal_text=GOAL_TEXT)
 

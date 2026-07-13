@@ -10,6 +10,7 @@ from app.agents.llm.curriculum import LLMCurriculumAgent
 from app.agents.llm.knowledge_map import LLMKnowledgeMapAgent
 from app.agents.llm.observer_selection import build_run_scoped_observer
 from app.agents.llm.retry_policy_selection import resolve_retry_policy
+from app.agents.llm.timeout_policy_selection import resolve_timeout_policy
 from app.agents.mock import (
     MockAssessorAgent,
     MockCriticAgent,
@@ -73,11 +74,13 @@ def _build_assessment_agent(
         return None
     client = build_llm_client_for_agent(settings)
     retry_policy = resolve_retry_policy(settings)
+    timeout_policy = resolve_timeout_policy(settings)
     return LLMAssessmentAgent(
         client=client,
         fallback_agent=MockAssessorAgent(),
         fallback_on_error=True,
         retry_policy=retry_policy,
+        timeout_policy=timeout_policy,
         observer=observer,
     )
 
@@ -91,11 +94,13 @@ def _build_knowledge_map_agent(
         return None
     client = build_llm_client_for_agent(settings)
     retry_policy = resolve_retry_policy(settings)
+    timeout_policy = resolve_timeout_policy(settings)
     return LLMKnowledgeMapAgent(
         client=client,
         fallback_agent=MockKnowledgeMapAgent(),
         fallback_on_error=True,
         retry_policy=retry_policy,
+        timeout_policy=timeout_policy,
         observer=observer,
     )
 
@@ -109,11 +114,13 @@ def _build_critic_agent(
         return None
     client = build_llm_client_for_agent(settings)
     retry_policy = resolve_retry_policy(settings)
+    timeout_policy = resolve_timeout_policy(settings)
     return LLMCriticAgent(
         client=client,
         fallback_agent=MockCriticAgent(),
         fallback_on_error=True,
         retry_policy=retry_policy,
+        timeout_policy=timeout_policy,
         observer=observer,
     )
 
@@ -127,10 +134,12 @@ def _build_curriculum_agent(
         return None
     client = build_llm_client_for_agent(settings)
     retry_policy = resolve_retry_policy(settings)
+    timeout_policy = resolve_timeout_policy(settings)
     return LLMCurriculumAgent(
         client=client,
         fallback_agent=MockCurriculumAgent(),
         fallback_on_error=True,
         retry_policy=retry_policy,
+        timeout_policy=timeout_policy,
         observer=observer,
     )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 
 from app.fixtures import canonical_demo as demo
@@ -23,6 +24,18 @@ CANONICAL_DIAGNOSTIC_CONCEPTS: tuple[str, ...] = (
     "chunking",
     "embeddings",
     "production_rag_failures",
+)
+
+_RAG_WORD_PATTERN = re.compile(r"\b(rag|retrieval)\b")
+
+_GOAL_TEXT_STOPWORDS: frozenset[str] = frozenset(
+    {
+        "a", "an", "the", "to", "for", "of", "in", "on", "and", "or", "with",
+        "my", "i", "learn", "learning", "want", "well", "enough", "so", "that",
+        "at", "as", "be", "is", "are", "will", "can", "into", "about", "how",
+        "this", "it", "its", "me", "months", "month", "weeks", "week", "years",
+        "year", "build", "get", "good", "new", "playing", "play",
+    }
 )
 
 _QUESTION_GAIN: dict[DifficultyLevel, float] = {
@@ -134,13 +147,34 @@ _SCORE_BLUEPRINTS: dict[str, tuple[float, tuple[ConceptEvidenceUpdate, ...], str
 
 
 def diagnostic_focus_for_goal(goal_text: str, learner_profile: LearnerProfile) -> list[str]:
+    """Concepts to target for this goal's diagnostic.
+
+    RAG-specific concepts are only used when the goal or profile is actually
+    about RAG/retrieval (word-boundary matched, not a raw substring check -
+    "mortgage" must not match "rag"). Anything else falls back to keywords
+    derived from the goal text itself, never to the RAG concept set - a goal
+    about an unrelated topic must never silently default to RAG.
+    """
     normalized = f"{goal_text} {' '.join(learner_profile.weak_areas)}".lower()
     concepts: list[str] = []
-    if "rag" in normalized or "retrieval" in normalized:
+    if _RAG_WORD_PATTERN.search(normalized):
         concepts.extend(CANONICAL_DIAGNOSTIC_CONCEPTS)
     concepts.extend(_safe_concepts(learner_profile.weak_areas))
     concepts.extend(_safe_concepts(learner_profile.strengths))
-    return _unique(concepts) or list(CANONICAL_DIAGNOSTIC_CONCEPTS)
+    return _unique(concepts) or _keywords_from_goal_text(goal_text)
+
+
+def _keywords_from_goal_text(goal_text: str) -> list[str]:
+    """A lightweight, deterministic stand-in for real concept extraction.
+
+    Only used as a topic-neutral seed for target_concepts - the real
+    per-goal concept understanding comes from the LLM agent when enabled;
+    this just keeps the deterministic path (and any un-configured LLM
+    prompt) from defaulting to RAG vocabulary for an unrelated goal.
+    """
+    tokens = re.findall(r"[a-z0-9]+", goal_text.lower())
+    keywords = [token for token in tokens if len(token) > 2 and token not in _GOAL_TEXT_STOPWORDS]
+    return _unique(keywords)[:6] or ["general_concepts"]
 
 
 def build_question_output(payload: AssessmentAgentInput) -> AssessmentAgentOutput:

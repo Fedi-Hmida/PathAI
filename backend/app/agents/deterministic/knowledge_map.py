@@ -111,11 +111,13 @@ def _ordered_concepts(
         for answer in payload.assessment_answers
         for concept_id in answer.question.target_concepts
     ]
-    concepts = [
-        *evidence_by_concept,
-        *from_answers,
-        *MISSING_CURRICULUM_READY_CONCEPTS,
-    ]
+    concepts = [*evidence_by_concept, *from_answers]
+    # These two are RAG-specific follow-up concepts - only meaningful (and
+    # only added) when this workspace's own evidence is already RAG-related.
+    # Otherwise every knowledge map, regardless of topic, would show
+    # "Reranking"/"Production RAG failure modes" as missing concepts.
+    if {"rag_fundamentals", "retrieval"} & set(concepts):
+        concepts.extend(MISSING_CURRICULUM_READY_CONCEPTS)
     preferred_order = [
         "rag_fundamentals",
         "retrieval",

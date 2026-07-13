@@ -5,6 +5,8 @@ from app.agents.services import build_mock_agent_service_bundle
 from app.api.v1.dependencies import ApiServiceContainer
 from app.fixtures import canonical_demo as demo
 from app.schemas.curriculum import CurriculumAgentInput, CurriculumAgentOutput
+from app.schemas.enums import ConceptClassification
+from app.schemas.knowledge_map import ConceptMasteryDTO
 
 
 def test_curriculum_generation_prioritizes_weak_and_missing_concepts() -> None:
@@ -67,6 +69,52 @@ def test_curriculum_agent_service_persists_generated_curriculum() -> None:
     assert stored == curriculum
     assert "reranking" in stored_concepts
     assert "production_rag_failures" in stored_concepts
+
+
+def test_curriculum_for_a_non_rag_goal_contains_no_rag_content() -> None:
+    non_rag_concepts = [
+        ConceptMasteryDTO(
+            concept_id="chord_progressions",
+            label="Chord progressions",
+            mastery_score=0.2,
+            classification=ConceptClassification.WEAK,
+            evidence=["Struggled with basic chord transitions."],
+        ),
+        ConceptMasteryDTO(
+            concept_id="fingerpicking",
+            label="Fingerpicking",
+            mastery_score=0.1,
+            classification=ConceptClassification.MISSING,
+        ),
+    ]
+    knowledge_map = demo.KNOWLEDGE_MAP.model_copy(
+        update={
+            "concepts": non_rag_concepts,
+            "strong_concepts": [],
+            "developing_concepts": [],
+            "weak_concepts": ["chord_progressions"],
+            "missing_concepts": ["fingerpicking"],
+        },
+    )
+    payload = CurriculumAgentInput(
+        goal_text="Learn classical guitar for a wedding performance",
+        learner_profile=demo.LEARNER_PROFILE.model_copy(
+            update={"weak_areas": [], "strengths": []},
+        ),
+        knowledge_map=knowledge_map,
+        duration_weeks=3,
+        hours_per_week=5,
+    )
+
+    output = MockCurriculumAgent().build_curriculum(payload)
+
+    assert CurriculumAgentOutput.model_validate(output) == output
+    blob = output.model_dump_json().lower()
+    rag_terms = ("rag", "retrieval", "chunking", "embeddings", "vector_search", "reranking")
+    for rag_term in rag_terms:
+        message = f"unexpected RAG term leaked into non-RAG curriculum: {rag_term}"
+        assert rag_term not in blob, message
+    assert "guitar" in blob or "wedding" in blob
 
 
 def _build_curriculum_output() -> CurriculumAgentOutput:

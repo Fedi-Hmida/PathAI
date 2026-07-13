@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from app.agents.deterministic.knowledge_map import build_knowledge_map_output
 from app.agents.services import build_mock_agent_service_bundle
 from app.api.v1.dependencies import ApiServiceContainer
 from app.fixtures import canonical_demo as demo
+from app.schemas.assessment import ConceptEvidence
 from app.schemas.enums import ConceptClassification, KnowledgeMapStatus
+from app.schemas.knowledge_map import KnowledgeMapAgentInput
 
 
 def test_knowledge_map_is_generated_from_assessment_evidence() -> None:
@@ -72,3 +75,22 @@ def test_knowledge_map_concepts_are_schema_valid_and_curriculum_ready() -> None:
     assert container.knowledge_map_service.get_by_id(demo.KNOWLEDGE_MAP_ID) == (
         knowledge_map
     )
+
+
+def test_knowledge_map_for_a_non_rag_goal_does_not_inject_rag_missing_concepts() -> None:
+    payload = KnowledgeMapAgentInput(
+        goal_text="Learn classical guitar for a wedding performance",
+        assessment_answers=[],
+        concept_evidence=[
+            ConceptEvidence(concept_id="chord_progressions", score=0.25, evidence=["shaky"]),
+            ConceptEvidence(concept_id="fingerpicking", score=0.15, evidence=["new to it"]),
+        ],
+    )
+
+    output = build_knowledge_map_output(payload)
+
+    assert "reranking" not in output.missing_concepts
+    assert "production_rag_failures" not in output.missing_concepts
+    concept_ids = {concept.concept_id for concept in output.concepts}
+    assert "reranking" not in concept_ids
+    assert "production_rag_failures" not in concept_ids

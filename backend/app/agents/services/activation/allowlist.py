@@ -17,5 +17,15 @@ VALIDATED_COMBINATIONS: frozenset[frozenset[str]] = frozenset(
         # app/orchestration/nodes.py, requiring no graph change. Proven by
         # test_multi_agent_curriculum_critic_agent_interaction.py.
         frozenset({"critic_agent_mode", "curriculum_agent_mode"}),
+        # Rebuild-29: WorkspaceGenerationService.generate() feeds the
+        # assessment agent's real goal-aware question/evidence output into
+        # the knowledge-map agent, and the knowledge-map agent's real output
+        # into the curriculum agent — a genuine three-way handoff needed for
+        # per-user goals to be topic-general end to end, not RAG-locked.
+        # Proven by
+        # test_multi_agent_assessment_knowledge_map_curriculum_interaction.py.
+        frozenset(
+            {"assessment_agent_mode", "knowledge_map_agent_mode", "curriculum_agent_mode"},
+        ),
     },
 )
