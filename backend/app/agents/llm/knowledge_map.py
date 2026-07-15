@@ -117,8 +117,12 @@ def _build_schema_focused_prompt(payload: KnowledgeMapAgentInput) -> str:
         "(never a single string, even if there is only one item). "
         "strong_concepts, developing_concepts, weak_concepts, and missing_concepts must "
         "each be a JSON array containing only the concept_id string values from concepts "
-        "above, grouped by classification — never full concept objects. "
-        "Use only classifications supported by the schema."
+        "above, grouped by classification — never full concept objects.\n"
+        "Strict value rules (output is rejected otherwise):\n"
+        "- concept_id and every prerequisites entry: lowercase snake_case matching "
+        "^[a-z][a-z0-9_]+$, e.g. 'linear_algebra' (never 'Linear Algebra' or a display label).\n"
+        "- classification: exactly one of 'strong', 'developing', 'weak', 'missing'.\n"
+        "- mastery_score and confidence: numbers between 0.0 and 1.0."
     )
 
 

@@ -182,9 +182,16 @@ def _build_question_prompt(payload: AssessmentAgentInput) -> str:
         "Recent questions:\n"
         f"{prior_summary}\n\n"
         "Required JSON fields: question (with question_id, question_type, prompt, options, "
-        "target_concepts, difficulty), rationale, estimated_information_gain. "
-        "Use only question_types and difficulty levels supported by the schema. "
-        "Target concepts must be from the provided target_concepts list."
+        "target_concepts, difficulty), rationale, estimated_information_gain.\n"
+        "Strict value rules (output is rejected otherwise):\n"
+        "- question_id: must start with 'question_' followed by lowercase letters, digits "
+        "or underscores, e.g. 'question_nlp_basics_1'.\n"
+        "- question_type: exactly one of 'multiple_choice', 'short_answer', 'self_rating'.\n"
+        "- difficulty: exactly one of 'beginner', 'intermediate', 'advanced' "
+        "(never 'easy'/'hard').\n"
+        "- target_concepts: 1-8 lowercase snake_case ids drawn from the provided target "
+        "concepts, e.g. 'natural_language_processing'.\n"
+        "- estimated_information_gain: a number between 0.0 and 1.0."
     )
 
 
@@ -209,10 +216,17 @@ def _build_scoring_prompt(answer: AssessmentAnswerDTO) -> str:
         f"Correct options: {', '.join(answer.question.options[:4])}\n\n"
         f"Learner answer text: {answer_text}\n"
         f"Learner selected options: {options}\n\n"
-        "Required JSON fields: answer_id, score (0.0 to 1.0), concept_scores (list with "
-        "concept_id, score_delta, evidence), feedback, confidence_after_answer. "
-        "Score must reflect answer quality. concept_scores must target the question's "
-        "target_concepts. evidence must be actionable feedback."
+        "Required JSON fields: answer_id, score (0.0 to 1.0), concept_scores (non-empty list "
+        "with concept_id, score_delta, evidence), feedback, confidence_after_answer.\n"
+        "Strict value rules (output is rejected otherwise):\n"
+        "- answer_id: must start with 'answer_' followed by lowercase letters, digits or "
+        "underscores, e.g. 'answer_nlp_1'.\n"
+        "- concept_scores[].concept_id: lowercase snake_case, drawn from the question's "
+        "target_concepts.\n"
+        "- concept_scores[].score_delta: a number between -1.0 and 1.0.\n"
+        "- concept_scores[].evidence: 1-400 chars of actionable feedback.\n"
+        "- score and confidence_after_answer: numbers between 0.0 and 1.0.\n"
+        "Score must reflect answer quality."
     )
 
 
