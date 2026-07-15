@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import dataclass, field
 
 from app.agents.contracts import KnowledgeMapAgent
-from app.agents.errors import AgentError
+from app.agents.errors import LLMGenerationUnavailableError
 from app.llm.contracts import (
     LLMClient,
     LLMModelMetadata,
@@ -62,10 +62,17 @@ class LLMKnowledgeMapAgent:
                     ),
                 )
                 return self.fallback_agent.build_knowledge_map(payload)
-            raise AgentError(
-                self.agent_name,
-                "LLM-backed knowledge-map generation failed safely.",
-            ) from exc
+            self.observer.record(
+                LLMReliabilityEvent(
+                    event_type=LLMReliabilityEventType.GENERATION_UNAVAILABLE,
+                    schema_name=KnowledgeMapAgentOutput.__name__,
+                    attempt=self.retry_policy.max_attempts,
+                    max_attempts=self.retry_policy.max_attempts,
+                    error_code=exc.error_code,
+                    reason_code="fail_loud_no_fallback",
+                ),
+            )
+            raise LLMGenerationUnavailableError(self.agent_name) from exc
 
 
 def _run_structured_sync(

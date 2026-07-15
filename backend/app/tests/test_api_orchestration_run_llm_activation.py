@@ -106,6 +106,11 @@ def test_route_degrades_to_fallback_when_run_budget_already_exhausted(
 ) -> None:
     monkeypatch.setenv("PATHAI_ENABLE_LLM_KNOWLEDGE_MAP_AGENT", "true")
     monkeypatch.setenv("LLM_PROVIDER", "fake")
+    # Deterministic-fallback mode is the explicit opt-in that preserves the
+    # legacy degrade-on-failure behavior this test asserts. Under the default
+    # (fail-loud) mode an exhausted budget would instead raise
+    # LLMGenerationUnavailableError and the run would fail, not complete.
+    monkeypatch.setenv("PATHAI_LLM_FALLBACK_MODE", "deterministic")
     exhausted_observer = RunScopedBudgetObserver(
         RunBudget(max_llm_calls=1),
         inner=LoggingObserver(),

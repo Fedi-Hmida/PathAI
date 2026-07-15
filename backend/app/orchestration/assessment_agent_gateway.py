@@ -22,6 +22,7 @@ package, per `test_agent_scope_security.py`).
 from __future__ import annotations
 
 from app.agents.errors import AgentError as AgentError
+from app.agents.errors import LLMGenerationUnavailableError as LLMGenerationUnavailableError
 from app.agents.services import build_mock_agent_service_bundle
 from app.agents.services.activation import build_injected_agents, resolve_agent_integration_switches
 from app.agents.services.assessment import AssessmentAgentService as AssessmentAgentService

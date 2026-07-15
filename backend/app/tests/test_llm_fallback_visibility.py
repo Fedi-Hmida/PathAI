@@ -6,7 +6,7 @@ from app.agents.deterministic.assessment import build_question_output, score_ans
 from app.agents.deterministic.critic import build_critic_output
 from app.agents.deterministic.curriculum import build_curriculum_output
 from app.agents.deterministic.knowledge_map import build_knowledge_map_output
-from app.agents.errors import AgentError
+from app.agents.errors import LLMGenerationUnavailableError
 from app.agents.llm.assessment import LLMAssessmentAgent
 from app.agents.llm.critic import LLMCriticAgent
 from app.agents.llm.curriculum import LLMCurriculumAgent
@@ -51,7 +51,7 @@ def test_knowledge_map_agent_records_fallback_used_event() -> None:
     assert _event_type_counts(observer)["fallback_used"] == 1
 
 
-def test_knowledge_map_agent_without_fallback_raises_and_records_retry_exhausted() -> None:
+def test_knowledge_map_agent_without_fallback_fails_loud_records_event() -> None:
     observer = CountingObserver()
     agent = LLMKnowledgeMapAgent(
         client=FakeLLMClient(scenario=FakeLLMScenario.PROVIDER_ERROR),
@@ -61,11 +61,14 @@ def test_knowledge_map_agent_without_fallback_raises_and_records_retry_exhausted
         observer=observer,
     )
 
-    with pytest.raises(AgentError):
+    with pytest.raises(LLMGenerationUnavailableError):
         agent.build_knowledge_map(_knowledge_map_input())
 
     counts = _event_type_counts(observer)
     assert counts["retry_exhausted"] == 1
+    # The fail-loud path emits its own distinct, secret-free reliability event
+    # so operators can see the real failure without a silent fallback.
+    assert counts["generation_unavailable"] == 1
     assert "fallback_used" not in counts
 
 

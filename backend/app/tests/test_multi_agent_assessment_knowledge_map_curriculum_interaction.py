@@ -34,6 +34,12 @@ def _enable_all_three(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PATHAI_ENABLE_LLM_KNOWLEDGE_MAP_AGENT", "true")
     monkeypatch.setenv("PATHAI_ENABLE_LLM_CURRICULUM_AGENT", "true")
     monkeypatch.setenv("LLM_PROVIDER", "fake")
+    # These tests prove the LLM handoff between the agents they stub and let the
+    # remaining (unstubbed) downstream LLM agent degrade deterministically so
+    # the mixed pipeline still reaches COMPLETED. That degrade path is the
+    # explicit deterministic fallback mode (P2); under the default fail-loud
+    # mode the unstubbed agent's failure would fail the whole run.
+    monkeypatch.setenv("PATHAI_LLM_FALLBACK_MODE", "deterministic")
 
 
 def test_all_three_flags_resolve_to_llm_agents_with_distinct_clients(

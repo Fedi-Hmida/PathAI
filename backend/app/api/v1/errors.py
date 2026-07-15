@@ -7,6 +7,7 @@ from app.orchestration.assessment_agent_gateway import (
     AgentError,
     AssessmentQuestionMismatchError,
     AssessmentSessionNotActiveError,
+    LLMGenerationUnavailableError,
 )
 from app.orchestration.workspace_generation_gateway import (
     AssessmentNotCompleteError,
@@ -88,6 +89,23 @@ def register_api_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=409,
             content={"detail": "submitted answer does not match the current question"},
+        )
+
+    @app.exception_handler(LLMGenerationUnavailableError)
+    async def llm_generation_unavailable_handler(
+        _request: Request,
+        error: LLMGenerationUnavailableError,
+    ) -> JSONResponse:
+        # A distinct, retry-oriented contract for an enabled LLM agent that
+        # failed with no fallback active: the UI shows an explicit "generation
+        # failed — retry" state instead of another topic's canned content.
+        # Body carries no secrets or provider detail — only a stable code.
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": "We couldn't generate this yet. Please retry.",
+                "code": error.code,
+            },
         )
 
     @app.exception_handler(AgentError)

@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 
 from app.agents.deterministic.curriculum import build_curriculum_output
-from app.agents.errors import AgentError
+from app.agents.errors import LLMGenerationUnavailableError
 from app.agents.llm import LLMCurriculumAgent
 from app.agents.mock import MockCurriculumAgent
 from app.agents.services import (
@@ -177,19 +177,19 @@ def test_llm_curriculum_agent_falls_back_on_schema_invalid_json() -> None:
     assert output.duration_weeks == expected.duration_weeks
 
 
-def test_llm_curriculum_agent_can_fail_safely_without_fallback() -> None:
-    """Without fallback, malformed output must raise sanitized AgentError."""
+def test_llm_curriculum_agent_fails_loud_without_fallback() -> None:
+    """Without fallback, malformed output must raise the typed fail-loud error."""
     agent = LLMCurriculumAgent(
         client=FakeLLMClient(scenario=FakeLLMScenario.SCHEMA_INVALID_JSON),
         fallback_agent=MockCurriculumAgent(),
         fallback_on_error=False,
     )
 
-    with pytest.raises(AgentError) as error:
+    with pytest.raises(LLMGenerationUnavailableError) as error:
         agent.build_curriculum(_curriculum_input())
 
     assert error.value.agent_name == "curriculum_llm"
-    assert "failed safely" in str(error.value)
+    assert error.value.code == "generation_unavailable"
 
 
 def test_llm_curriculum_agent_fails_safely_on_timeout() -> None:

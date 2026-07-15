@@ -12,6 +12,7 @@ class LLMReliabilityEventType(StrEnum):
     ATTEMPT_FAILED = "attempt_failed"
     RETRY_EXHAUSTED = "retry_exhausted"
     FALLBACK_USED = "fallback_used"
+    GENERATION_UNAVAILABLE = "generation_unavailable"
     SUCCEEDED = "succeeded"
     RUN_BUDGET_EXHAUSTED = "run_budget_exhausted"
 

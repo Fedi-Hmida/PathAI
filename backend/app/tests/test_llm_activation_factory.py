@@ -44,7 +44,7 @@ def test_default_switches_produce_no_injected_agents() -> None:
     assert injected.curriculum is None
 
 
-def test_assessment_llm_switch_builds_fake_backed_agent_with_fallback() -> None:
+def test_assessment_llm_switch_builds_fail_loud_agent_by_default() -> None:
     switches = AgentIntegrationSwitches(assessment_agent_mode=AssessmentAgentMode.LLM)
     settings = Settings(llm_provider="fake")
 
@@ -52,13 +52,16 @@ def test_assessment_llm_switch_builds_fake_backed_agent_with_fallback() -> None:
 
     assert isinstance(injected.assessment, LLMAssessmentAgent)
     assert isinstance(injected.assessment.client, FakeLLMClient)
-    assert isinstance(injected.assessment.fallback_agent, MockAssessorAgent)
+    # Fail-loud is the default (PATHAI_LLM_FALLBACK_MODE unset): no silent
+    # deterministic fallback is wired in.
+    assert injected.assessment.fallback_agent is None
+    assert injected.assessment.fallback_on_error is False
     assert injected.knowledge_map is None
     assert injected.critic is None
     assert injected.curriculum is None
 
 
-def test_knowledge_map_llm_switch_builds_fake_backed_agent_with_fallback() -> None:
+def test_knowledge_map_llm_switch_builds_fail_loud_agent_by_default() -> None:
     switches = AgentIntegrationSwitches(knowledge_map_agent_mode=KnowledgeMapAgentMode.LLM)
     settings = Settings(llm_provider="fake")
 
@@ -66,13 +69,14 @@ def test_knowledge_map_llm_switch_builds_fake_backed_agent_with_fallback() -> No
 
     assert isinstance(injected.knowledge_map, LLMKnowledgeMapAgent)
     assert isinstance(injected.knowledge_map.client, FakeLLMClient)
-    assert isinstance(injected.knowledge_map.fallback_agent, MockKnowledgeMapAgent)
+    assert injected.knowledge_map.fallback_agent is None
+    assert injected.knowledge_map.fallback_on_error is False
     # Rebuild-22B: every agent now shares one run-scoped observer instead of
     # its own independent LoggingObserver.
     assert isinstance(injected.knowledge_map.observer, RunScopedBudgetObserver)
 
 
-def test_critic_llm_switch_builds_fake_backed_agent_with_fallback() -> None:
+def test_critic_llm_switch_builds_fail_loud_agent_by_default() -> None:
     switches = AgentIntegrationSwitches(critic_agent_mode=CriticAgentMode.LLM)
     settings = Settings(llm_provider="fake")
 
@@ -80,10 +84,11 @@ def test_critic_llm_switch_builds_fake_backed_agent_with_fallback() -> None:
 
     assert isinstance(injected.critic, LLMCriticAgent)
     assert isinstance(injected.critic.client, FakeLLMClient)
-    assert isinstance(injected.critic.fallback_agent, MockCriticAgent)
+    assert injected.critic.fallback_agent is None
+    assert injected.critic.fallback_on_error is False
 
 
-def test_curriculum_llm_switch_builds_fake_backed_agent_with_fallback() -> None:
+def test_curriculum_llm_switch_builds_fail_loud_agent_by_default() -> None:
     switches = AgentIntegrationSwitches(curriculum_agent_mode=CurriculumAgentMode.LLM)
     settings = Settings(llm_provider="fake")
 
@@ -91,7 +96,35 @@ def test_curriculum_llm_switch_builds_fake_backed_agent_with_fallback() -> None:
 
     assert isinstance(injected.curriculum, LLMCurriculumAgent)
     assert isinstance(injected.curriculum.client, FakeLLMClient)
+    assert injected.curriculum.fallback_agent is None
+    assert injected.curriculum.fallback_on_error is False
+
+
+def test_deterministic_fallback_mode_wires_mock_agents_behind_explicit_setting() -> None:
+    # PATHAI_LLM_FALLBACK_MODE=deterministic is the explicit opt-in that keeps
+    # the legacy degrade-on-failure behavior (offline tests / offline demo).
+    switches = AgentIntegrationSwitches(
+        assessment_agent_mode=AssessmentAgentMode.LLM,
+        knowledge_map_agent_mode=KnowledgeMapAgentMode.LLM,
+        critic_agent_mode=CriticAgentMode.LLM,
+        curriculum_agent_mode=CurriculumAgentMode.LLM,
+    )
+    settings = Settings(llm_provider="fake", llm_fallback_mode="deterministic")
+
+    injected = build_injected_agents(switches, settings)
+
+    assert isinstance(injected.assessment, LLMAssessmentAgent)
+    assert isinstance(injected.knowledge_map, LLMKnowledgeMapAgent)
+    assert isinstance(injected.critic, LLMCriticAgent)
+    assert isinstance(injected.curriculum, LLMCurriculumAgent)
+    assert isinstance(injected.assessment.fallback_agent, MockAssessorAgent)
+    assert injected.assessment.fallback_on_error is True
+    assert isinstance(injected.knowledge_map.fallback_agent, MockKnowledgeMapAgent)
+    assert injected.knowledge_map.fallback_on_error is True
+    assert isinstance(injected.critic.fallback_agent, MockCriticAgent)
+    assert injected.critic.fallback_on_error is True
     assert isinstance(injected.curriculum.fallback_agent, MockCurriculumAgent)
+    assert injected.curriculum.fallback_on_error is True
 
 
 def test_llm_switch_with_mock_provider_raises_unselectable_provider_error() -> None:

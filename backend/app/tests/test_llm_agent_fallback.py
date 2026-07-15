@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.agents.errors import AgentError
+from app.agents.errors import LLMGenerationUnavailableError
 from app.agents.llm import LLMKnowledgeMapAgent
 from app.agents.mock import MockKnowledgeMapAgent
 from app.agents.services import (
@@ -66,18 +66,18 @@ def test_llm_knowledge_map_agent_falls_back_on_invalid_output() -> None:
     assert output.summary.startswith("Recommended level: intermediate.")
 
 
-def test_llm_knowledge_map_agent_can_fail_safely_without_fallback() -> None:
+def test_llm_knowledge_map_agent_fails_loud_without_fallback() -> None:
     agent = LLMKnowledgeMapAgent(
         client=FakeLLMClient(scenario=FakeLLMScenario.SCHEMA_INVALID_JSON),
         fallback_agent=MockKnowledgeMapAgent(),
         fallback_on_error=False,
     )
 
-    with pytest.raises(AgentError) as error:
+    with pytest.raises(LLMGenerationUnavailableError) as error:
         agent.build_knowledge_map(_knowledge_map_input())
 
     assert error.value.agent_name == "knowledge_map_llm"
-    assert "failed safely" in str(error.value)
+    assert error.value.code == "generation_unavailable"
 
 
 def _knowledge_map_input() -> KnowledgeMapAgentInput:

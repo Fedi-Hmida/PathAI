@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from app.agents.deterministic.critic import build_critic_output
-from app.agents.errors import AgentError
+from app.agents.errors import LLMGenerationUnavailableError
 from app.agents.llm import LLMCriticAgent
 from app.agents.mock import MockCriticAgent
 from app.agents.services import (
@@ -101,18 +101,18 @@ def test_llm_critic_agent_falls_back_on_invalid_output() -> None:
     assert output == build_critic_output(_critic_input())
 
 
-def test_llm_critic_agent_can_fail_safely_without_fallback() -> None:
+def test_llm_critic_agent_fails_loud_without_fallback() -> None:
     agent = LLMCriticAgent(
         client=FakeLLMClient(scenario=FakeLLMScenario.SCHEMA_INVALID_JSON),
         fallback_agent=MockCriticAgent(),
         fallback_on_error=False,
     )
 
-    with pytest.raises(AgentError) as error:
+    with pytest.raises(LLMGenerationUnavailableError) as error:
         agent.review_curriculum(_critic_input())
 
     assert error.value.agent_name == "critic_llm"
-    assert "failed safely" in str(error.value)
+    assert error.value.code == "generation_unavailable"
 
 
 def _critic_input() -> CriticAgentInput:

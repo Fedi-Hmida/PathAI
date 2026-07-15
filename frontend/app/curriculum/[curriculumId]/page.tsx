@@ -7,6 +7,7 @@ import { RequireAuth } from "@/components/auth/require-auth";
 import { WeekPanel } from "@/components/curriculum/week-panel";
 import { WeekTrail } from "@/components/curriculum/week-trail";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/client";
 import { getCurriculum } from "@/lib/api/curriculum";
@@ -22,6 +23,7 @@ type CurriculumLoadState =
   | { kind: "loading" }
   | { kind: "not_found" }
   | { kind: "invalid_id" }
+  | { kind: "generation_unavailable" }
   | { kind: "ready"; curriculum: CurriculumDTO }
   | { kind: "error"; message: string };
 
@@ -48,6 +50,7 @@ function CurriculumWeekDetailView() {
 
   const [loadedCurriculumId, setLoadedCurriculumId] = React.useState(curriculumId);
   const [state, setState] = React.useState<CurriculumLoadState>({ kind: "loading" });
+  const [reloadNonce, setReloadNonce] = React.useState(0);
   const [attachments, setAttachments] = React.useState<ResourceAttachmentDTO[]>([]);
   const [resourceTitles, setResourceTitles] = React.useState<Map<string, ResourceDTO>>(new Map());
   const requestedResourceIdsRef = React.useRef<Set<string>>(new Set());
@@ -74,6 +77,11 @@ function CurriculumWeekDetailView() {
     setKnowledgeMap(null);
   }
 
+  const retry = React.useCallback(() => {
+    setState({ kind: "loading" });
+    setReloadNonce((nonce) => nonce + 1);
+  }, []);
+
   React.useEffect(() => {
     let cancelled = false;
     requestedResourceIdsRef.current = new Set();
@@ -90,6 +98,12 @@ function CurriculumWeekDetailView() {
         }
         if (error instanceof ApiError && error.status === 404) {
           setState({ kind: "not_found" });
+          return;
+        }
+        // The curriculum couldn't be generated (LLM unavailable): show an
+        // honest retry panel rather than falling through to placeholder content.
+        if (error instanceof ApiError && error.code === "generation_unavailable") {
+          setState({ kind: "generation_unavailable" });
           return;
         }
         // CurriculumId requires a "curriculum_" prefix + pattern
@@ -119,7 +133,7 @@ function CurriculumWeekDetailView() {
     return () => {
       cancelled = true;
     };
-  }, [curriculumId]);
+  }, [curriculumId, reloadNonce]);
 
   // progress_id and knowledge_map_id are optional context passed in via
   // query params (there is no by-curriculum lookup for either). Absent or
@@ -218,6 +232,20 @@ function CurriculumWeekDetailView() {
       <p className="text-muted-foreground text-sm">
         That doesn&apos;t look like a valid curriculum ID.
       </p>
+    );
+  }
+
+  if (state.kind === "generation_unavailable") {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>We couldn&apos;t generate your curriculum yet</AlertTitle>
+        <AlertDescription className="flex flex-col items-start gap-3">
+          <span>Generation didn&apos;t go through. Please retry.</span>
+          <Button variant="outline" size="sm" onClick={retry}>
+            Retry
+          </Button>
+        </AlertDescription>
+      </Alert>
     );
   }
 

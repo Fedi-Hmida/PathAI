@@ -50,6 +50,10 @@ class Settings(BaseSettings):
         default=False,
         validation_alias="PATHAI_ENABLE_LLM_CURRICULUM_AGENT",
     )
+    llm_fallback_mode: str = Field(
+        default="fail_loud",
+        validation_alias="PATHAI_LLM_FALLBACK_MODE",
+    )
     mongodb_uri: str = ""
     mongodb_database_name: str = "pathai"
     repository_backend: str = "fake"
@@ -94,6 +98,17 @@ class Settings(BaseSettings):
     @property
     def effective_llm_api_key(self) -> SecretStr | None:
         return self.llm_api_key or self.openai_api_key or self.university_llm_api_key
+
+    @property
+    def llm_deterministic_fallback_enabled(self) -> bool:
+        """True only when LLM-agent failures may silently degrade to deterministic output.
+
+        Defaults to False (fail-loud): an enabled LLM agent that fails raises an
+        explicit `LLMGenerationUnavailableError` instead of serving another
+        topic's canned deterministic content. Set `PATHAI_LLM_FALLBACK_MODE`
+        to `deterministic` only for offline tests / an intentional offline demo.
+        """
+        return self.llm_fallback_mode.strip().lower() == "deterministic"
 
     @property
     def auth_configured(self) -> bool:

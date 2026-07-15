@@ -47,10 +47,17 @@ def build_injected_agents(
 ) -> InjectedAgents:
     """Build LLM-backed agent instances for every switch resolved to `LLM`.
 
-    Every constructed agent always carries its matching deterministic mock
-    agent as `fallback_agent` with `fallback_on_error=True` — a live/fake
-    provider failure degrades to deterministic output, it never hard-fails
-    the caller.
+    Fallback policy is governed by `PATHAI_LLM_FALLBACK_MODE`
+    (`Settings.llm_deterministic_fallback_enabled`):
+
+    - fail-loud (default): agents carry no fallback (`fallback_on_error=False`),
+      so a live/fake provider failure raises `LLMGenerationUnavailableError`
+      rather than silently degrading to another topic's canned deterministic
+      output.
+    - deterministic (opt-in, for offline tests / an intentional offline demo):
+      each agent carries its matching deterministic mock agent as
+      `fallback_agent` with `fallback_on_error=True`, restoring the legacy
+      degrade-on-failure behavior.
 
     All agents built from this one call share a single run-scoped observer
     (Rebuild-22B), so a run-level call/wall-clock ceiling applies across every
@@ -75,10 +82,11 @@ def _build_assessment_agent(
     client = build_llm_client_for_agent(settings)
     retry_policy = resolve_retry_policy(settings)
     timeout_policy = resolve_timeout_policy(settings)
+    degrade = settings.llm_deterministic_fallback_enabled
     return LLMAssessmentAgent(
         client=client,
-        fallback_agent=MockAssessorAgent(),
-        fallback_on_error=True,
+        fallback_agent=MockAssessorAgent() if degrade else None,
+        fallback_on_error=degrade,
         retry_policy=retry_policy,
         timeout_policy=timeout_policy,
         observer=observer,
@@ -95,10 +103,11 @@ def _build_knowledge_map_agent(
     client = build_llm_client_for_agent(settings)
     retry_policy = resolve_retry_policy(settings)
     timeout_policy = resolve_timeout_policy(settings)
+    degrade = settings.llm_deterministic_fallback_enabled
     return LLMKnowledgeMapAgent(
         client=client,
-        fallback_agent=MockKnowledgeMapAgent(),
-        fallback_on_error=True,
+        fallback_agent=MockKnowledgeMapAgent() if degrade else None,
+        fallback_on_error=degrade,
         retry_policy=retry_policy,
         timeout_policy=timeout_policy,
         observer=observer,
@@ -115,10 +124,11 @@ def _build_critic_agent(
     client = build_llm_client_for_agent(settings)
     retry_policy = resolve_retry_policy(settings)
     timeout_policy = resolve_timeout_policy(settings)
+    degrade = settings.llm_deterministic_fallback_enabled
     return LLMCriticAgent(
         client=client,
-        fallback_agent=MockCriticAgent(),
-        fallback_on_error=True,
+        fallback_agent=MockCriticAgent() if degrade else None,
+        fallback_on_error=degrade,
         retry_policy=retry_policy,
         timeout_policy=timeout_policy,
         observer=observer,
@@ -135,10 +145,11 @@ def _build_curriculum_agent(
     client = build_llm_client_for_agent(settings)
     retry_policy = resolve_retry_policy(settings)
     timeout_policy = resolve_timeout_policy(settings)
+    degrade = settings.llm_deterministic_fallback_enabled
     return LLMCurriculumAgent(
         client=client,
-        fallback_agent=MockCurriculumAgent(),
-        fallback_on_error=True,
+        fallback_agent=MockCurriculumAgent() if degrade else None,
+        fallback_on_error=degrade,
         retry_policy=retry_policy,
         timeout_policy=timeout_policy,
         observer=observer,

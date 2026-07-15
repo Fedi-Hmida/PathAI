@@ -29,11 +29,16 @@ type LoadState =
   | { kind: "invalid_id" }
   | { kind: "not_found" }
   | { kind: "error"; message: string }
+  // The next question / scoring couldn't be generated (LLM unavailable). The
+  // answer isn't lost — retryPayload re-submits it. We never fall through to
+  // another topic's canned content.
+  | { kind: "generation_unavailable"; goalText: string; retryPayload: AssessmentAnswerCreate }
   | { kind: "ready"; session: AssessmentSessionDTO; goalText: string; lastAnswer: AssessmentAnswerDTO | null };
 
 type GenerationState =
   | { kind: "idle" }
   | { kind: "generating" }
+  | { kind: "unavailable" }
   | { kind: "error"; message: string };
 
 export default function LiveAssessmentPage() {
@@ -95,20 +100,21 @@ function LiveAssessmentView() {
     };
   }, [assessmentId]);
 
-  async function handleSubmit(payload: AssessmentAnswerCreate) {
-    if (state.kind !== "ready") {
-      return;
-    }
+  async function submitAnswer(payload: AssessmentAnswerCreate, goalText: string) {
     setSubmitting(true);
     try {
       const response = await submitAssessmentAnswer(assessmentId, payload);
       setState({
         kind: "ready",
         session: response.session,
-        goalText: state.goalText,
+        goalText,
         lastAnswer: response.answer,
       });
     } catch (error) {
+      if (error instanceof ApiError && error.code === "generation_unavailable") {
+        setState({ kind: "generation_unavailable", goalText, retryPayload: payload });
+        return;
+      }
       const message =
         error instanceof ApiError ? error.message : "Unable to reach the PathAI backend.";
       setState({ kind: "error", message });
@@ -117,12 +123,23 @@ function LiveAssessmentView() {
     }
   }
 
+  function handleSubmit(payload: AssessmentAnswerCreate) {
+    if (state.kind !== "ready") {
+      return;
+    }
+    void submitAnswer(payload, state.goalText);
+  }
+
   async function handleGenerate(runId: string) {
     setGeneration({ kind: "generating" });
     try {
       await generateMyWorkspace();
       router.replace(`/dashboard/${runId}`);
     } catch (error) {
+      if (error instanceof ApiError && error.code === "generation_unavailable") {
+        setGeneration({ kind: "unavailable" });
+        return;
+      }
       const message =
         error instanceof ApiError ? error.message : "Unable to reach the PathAI backend.";
       setGeneration({ kind: "error", message });
@@ -154,6 +171,33 @@ function LiveAssessmentView() {
     );
   }
 
+  if (state.kind === "generation_unavailable") {
+    const retryPayload = state.retryPayload;
+    const goalText = state.goalText;
+    return (
+      <div className="mx-auto flex max-w-lg flex-col gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Generation didn&apos;t go through</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <p className="text-muted-foreground text-sm">
+              We couldn&apos;t generate the next step just now. Your answer wasn&apos;t lost —
+              please retry.
+            </p>
+            <Button
+              onClick={() => void submitAnswer(retryPayload, goalText)}
+              disabled={submitting}
+              className="w-fit"
+            >
+              {submitting ? "Retrying..." : "Retry"}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const { session, goalText, lastAnswer } = state;
 
   if (session.status === "completed") {
@@ -172,7 +216,14 @@ function LiveAssessmentView() {
               from your answers.
             </p>
 
-            {generation.kind === "error" ? (
+            {generation.kind === "unavailable" ? (
+              <Alert variant="destructive">
+                <AlertTitle>Generation failed</AlertTitle>
+                <AlertDescription>
+                  We couldn&apos;t generate your learning path yet. Please retry.
+                </AlertDescription>
+              </Alert>
+            ) : generation.kind === "error" ? (
               <Alert variant="destructive">
                 <AlertTitle>Couldn&apos;t generate your learning path</AlertTitle>
                 <AlertDescription>{generation.message}</AlertDescription>
@@ -184,9 +235,16 @@ function LiveAssessmentView() {
               disabled={generating}
               className="w-fit"
             >
-              {generating ? "Generating your learning path..." : "Generate my learning path"}
+              {generating
+                ? "Generating your learning path..."
+                : generation.kind === "unavailable" || generation.kind === "error"
+                  ? "Retry"
+                  : "Generate my learning path"}
             </Button>
 
+            {/* Only offer the dashboard shortcut on a transient/other error —
+                never on generation_unavailable, where the dashboard would show
+                un-generated (demo-clone) content instead of the real result. */}
             {generation.kind === "error" ? (
               <button
                 type="button"

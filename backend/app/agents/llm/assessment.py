@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import dataclass, field
 
 from app.agents.contracts import AssessorAgent
-from app.agents.errors import AgentError
+from app.agents.errors import LLMGenerationUnavailableError
 from app.llm.contracts import (
     LLMClient,
     LLMModelMetadata,
@@ -66,10 +66,17 @@ class LLMAssessmentAgent:
                     ),
                 )
                 return self.fallback_agent.generate_question(payload)
-            raise AgentError(
-                self.agent_name,
-                "LLM-backed assessment question generation failed safely.",
-            ) from exc
+            self.observer.record(
+                LLMReliabilityEvent(
+                    event_type=LLMReliabilityEventType.GENERATION_UNAVAILABLE,
+                    schema_name=AssessmentAgentOutput.__name__,
+                    attempt=self.retry_policy.max_attempts,
+                    max_attempts=self.retry_policy.max_attempts,
+                    error_code=exc.error_code,
+                    reason_code="fail_loud_no_fallback",
+                ),
+            )
+            raise LLMGenerationUnavailableError(self.agent_name) from exc
 
     def score_answer(self, answer: AssessmentAnswerDTO) -> AssessmentScoreOutput:
         request = StructuredOutputRequest(
@@ -101,10 +108,17 @@ class LLMAssessmentAgent:
                     ),
                 )
                 return self.fallback_agent.score_answer(answer)
-            raise AgentError(
-                self.agent_name,
-                "LLM-backed assessment answer scoring failed safely.",
-            ) from exc
+            self.observer.record(
+                LLMReliabilityEvent(
+                    event_type=LLMReliabilityEventType.GENERATION_UNAVAILABLE,
+                    schema_name=AssessmentScoreOutput.__name__,
+                    attempt=self.retry_policy.max_attempts,
+                    max_attempts=self.retry_policy.max_attempts,
+                    error_code=exc.error_code,
+                    reason_code="fail_loud_no_fallback",
+                ),
+            )
+            raise LLMGenerationUnavailableError(self.agent_name) from exc
 
 
 def _run_structured_sync_question(

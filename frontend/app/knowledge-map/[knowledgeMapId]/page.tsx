@@ -10,6 +10,7 @@ import { ConceptDetailPanel } from "@/components/knowledge-map/concept-detail-pa
 import { ConceptGraph } from "@/components/knowledge-map/concept-graph";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/client";
 import { getGoal } from "@/lib/api/goal";
@@ -21,6 +22,7 @@ type KnowledgeMapLoadState =
   | { kind: "loading" }
   | { kind: "not_found" }
   | { kind: "invalid_id" }
+  | { kind: "generation_unavailable" }
   | { kind: "ready"; knowledgeMap: KnowledgeMapDTO }
   | { kind: "error"; message: string };
 
@@ -53,12 +55,18 @@ function KnowledgeMapView() {
   const [loadedKnowledgeMapId, setLoadedKnowledgeMapId] = React.useState(knowledgeMapId);
   const [state, setState] = React.useState<KnowledgeMapLoadState>({ kind: "loading" });
   const [goalText, setGoalText] = React.useState<string | null>(null);
+  const [reloadNonce, setReloadNonce] = React.useState(0);
 
   if (knowledgeMapId !== loadedKnowledgeMapId) {
     setLoadedKnowledgeMapId(knowledgeMapId);
     setState({ kind: "loading" });
     setGoalText(null);
   }
+
+  const retry = React.useCallback(() => {
+    setState({ kind: "loading" });
+    setReloadNonce((nonce) => nonce + 1);
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -77,6 +85,12 @@ function KnowledgeMapView() {
           setState({ kind: "not_found" });
           return;
         }
+        // The map couldn't be generated (LLM unavailable): show an honest
+        // retry panel rather than falling through to placeholder content.
+        if (error instanceof ApiError && error.code === "generation_unavailable") {
+          setState({ kind: "generation_unavailable" });
+          return;
+        }
         // KnowledgeMapId requires a "kmap_" prefix + pattern
         // (schemas/ids.py); a malformed id fails FastAPI's request
         // validation with 422 before reaching the not-found path.
@@ -92,7 +106,7 @@ function KnowledgeMapView() {
     return () => {
       cancelled = true;
     };
-  }, [knowledgeMapId]);
+  }, [knowledgeMapId, reloadNonce]);
 
   // The knowledge map carries the goal_id but not the goal text; fetch it for
   // the header title once the map has loaded, degrading to nothing (title
@@ -146,6 +160,20 @@ function KnowledgeMapView() {
       <p className="text-muted-foreground text-sm">
         That doesn&apos;t look like a valid knowledge map ID.
       </p>
+    );
+  }
+
+  if (state.kind === "generation_unavailable") {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>We couldn&apos;t generate your knowledge map yet</AlertTitle>
+        <AlertDescription className="flex flex-col items-start gap-3">
+          <span>Generation didn&apos;t go through. Please retry.</span>
+          <Button variant="outline" size="sm" onClick={retry}>
+            Retry
+          </Button>
+        </AlertDescription>
+      </Alert>
     );
   }
 

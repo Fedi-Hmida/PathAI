@@ -12,12 +12,27 @@ const NO_REFRESH_RETRY_PATHS = new Set(["/auth/login", "/auth/register", "/auth/
 
 export class ApiError extends Error {
   readonly status: number;
+  // Stable, machine-readable error code from the response body (e.g.
+  // "generation_unavailable"), when the backend supplies one. Lets pages
+  // branch on the code instead of matching human-facing message strings.
+  readonly code: string | null;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code: string | null = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = code;
   }
+}
+
+function extractErrorCode(body: unknown): string | null {
+  if (body && typeof body === "object" && "code" in body) {
+    const code = (body as { code: unknown }).code;
+    if (typeof code === "string") {
+      return code;
+    }
+  }
+  return null;
 }
 
 function extractErrorMessage(body: unknown): string {
@@ -132,7 +147,7 @@ async function request<T>(
 
   const parsed = await parseJsonBody(response);
   if (!response.ok) {
-    throw new ApiError(response.status, extractErrorMessage(parsed));
+    throw new ApiError(response.status, extractErrorMessage(parsed), extractErrorCode(parsed));
   }
   return parsed as T;
 }

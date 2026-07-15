@@ -6,7 +6,7 @@ from app.agents.deterministic.knowledge_map import build_knowledge_map_output
 from app.agents.llm.curriculum import LLMCurriculumAgent
 from app.agents.llm.knowledge_map import LLMKnowledgeMapAgent
 from app.agents.llm.observer_selection import build_run_scoped_observer
-from app.agents.mock import MockCurriculumAgent, MockKnowledgeMapAgent
+from app.agents.mock import MockKnowledgeMapAgent
 from app.agents.services.activation import factory as factory_module
 from app.agents.services.activation.factory import build_injected_agents
 from app.agents.services.bundle import AgentIntegrationSwitches, CurriculumAgentMode
@@ -142,7 +142,8 @@ def test_build_injected_agents_shares_one_observer_instance_across_agent_roles(
 
     assert isinstance(injected.curriculum, LLMCurriculumAgent)
     assert injected.curriculum.observer is sentinel
-    assert isinstance(injected.curriculum.fallback_agent, MockCurriculumAgent)
+    # Fail-loud is the default: no silent deterministic fallback is wired in.
+    assert injected.curriculum.fallback_agent is None
 
 
 def _knowledge_map_input() -> KnowledgeMapAgentInput:
