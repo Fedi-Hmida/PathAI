@@ -54,6 +54,10 @@ class Settings(BaseSettings):
         default="fail_loud",
         validation_alias="PATHAI_LLM_FALLBACK_MODE",
     )
+    llm_self_correction_enabled: bool = Field(
+        default=True,
+        validation_alias="PATHAI_LLM_SELF_CORRECTION",
+    )
     mongodb_uri: str = ""
     mongodb_database_name: str = "pathai"
     repository_backend: str = "fake"

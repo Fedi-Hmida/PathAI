@@ -25,4 +25,5 @@ def resolve_retry_policy(settings: Settings) -> LLMRetryPolicy:
     return LLMRetryPolicy(
         max_attempts=max_attempts,
         backoff_seconds=settings.llm_retry_backoff_seconds,
+        self_correct_on_validation_error=settings.llm_self_correction_enabled,
     )

@@ -43,6 +43,17 @@ def _force_erroring_llm_client(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def _force_schema_invalid_llm_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Every call returns HTTP-200-equivalent but schema-invalid JSON, exercising
+    # the Rebuild-31 self-correction path: the bounded repair budget is spent and
+    # the flow still fails loud rather than degrading to canned content.
+    monkeypatch.setattr(
+        client_selection,
+        "FakeLLMClient",
+        lambda: FakeLLMClient(scenario=FakeLLMScenario.SCHEMA_INVALID_JSON),
+    )
+
+
 def _apply(monkeypatch: pytest.MonkeyPatch) -> None:
     get_settings.cache_clear()
     reset_api_container_for_tests()
@@ -88,6 +99,26 @@ def test_assessment_start_fails_loud_with_503_when_llm_errors(
     monkeypatch = auth_enabled_env
     monkeypatch.setenv("PATHAI_ENABLE_LLM_ASSESSMENT_AGENT", "true")
     _force_erroring_llm_client(monkeypatch)
+    _apply(monkeypatch)
+
+    client = TestClient(create_app(), raise_server_exceptions=False)
+    token = _register(client, "learner@example.com")
+    _create_workspace(client, token)
+
+    response = client.post("/api/v1/me/assessment/start", headers=_auth_header(token))
+
+    _assert_generation_unavailable(response, response.text)
+
+
+def test_assessment_start_fails_loud_with_503_when_output_always_schema_invalid(
+    auth_enabled_env: pytest.MonkeyPatch,
+) -> None:
+    # Rebuild-31: even after the bounded self-correction retry, persistently
+    # schema-invalid output must still surface as 503 generation_unavailable
+    # (never RAG). Self-correction is ON by default (no env override).
+    monkeypatch = auth_enabled_env
+    monkeypatch.setenv("PATHAI_ENABLE_LLM_ASSESSMENT_AGENT", "true")
+    _force_schema_invalid_llm_client(monkeypatch)
     _apply(monkeypatch)
 
     client = TestClient(create_app(), raise_server_exceptions=False)

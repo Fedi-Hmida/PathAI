@@ -45,6 +45,20 @@ class LLMStructuredOutputError(LLMError):
     error_code = "llm_structured_output_error"
     retryable = False
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        provider: str | None = None,
+        retryable: bool | None = None,
+        repair_hint: str | None = None,
+    ) -> None:
+        super().__init__(message, provider=provider, retryable=retryable)
+        # Bounded, secret-free field-level guidance for an in-band self-correction
+        # retry. Never carries the offending input values or model output — only
+        # field paths/types/messages, redacted. Safe to append to a prompt.
+        self.repair_hint = redact_secrets(repair_hint) if repair_hint else None
+
 
 class LLMOutputParseError(LLMStructuredOutputError):
     error_code = "llm_output_parse_error"

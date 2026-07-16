@@ -59,7 +59,14 @@ async def test_non_retryable_error_does_not_sleep(monkeypatch: pytest.MonkeyPatc
     sleep_mock = AsyncMock()
     monkeypatch.setattr(asyncio, "sleep", sleep_mock)
     client = FakeLLMClient(scenario=FakeLLMScenario.SCHEMA_INVALID_JSON)
-    policy = LLMRetryPolicy(max_attempts=3, backoff_seconds=5.0)
+    # With self-correction disabled, a schema-invalid (validation) error is
+    # genuinely non-retryable: a single call, no backoff sleep. (Self-correction
+    # ON is covered in test_llm_self_correction.py.)
+    policy = LLMRetryPolicy(
+        max_attempts=3,
+        backoff_seconds=5.0,
+        self_correct_on_validation_error=False,
+    )
 
     with pytest.raises(LLMRetryLimitExceeded):
         await generate_structured_with_retry(

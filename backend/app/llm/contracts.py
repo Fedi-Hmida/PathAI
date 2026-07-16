@@ -23,6 +23,16 @@ class LLMRetryPolicy(BaseModel):
     retry_on_provider_error: bool = True
     retry_on_parse_error: bool = True
     backoff_seconds: float = Field(default=0.0, ge=0.0, le=30.0)
+    # Bounded in-band self-correction for schema-invalid output. Budgeted
+    # independently of `max_attempts` (transient retries): a validation error
+    # triggers up to `max_self_corrections` repair attempts that append a
+    # secret-free field-level hint to the prompt. Once exhausted, the loop still
+    # fails loud (Rebuild-30). The repair attempt is immediate (no backoff) and
+    # nudges temperature up to `self_correction_temperature` to escape a
+    # deterministic bad local output.
+    self_correct_on_validation_error: bool = True
+    max_self_corrections: int = Field(default=1, ge=0, le=3)
+    self_correction_temperature: float = Field(default=0.2, ge=0.0, le=2.0)
 
 
 class StructuredOutputRequest(BaseModel):
