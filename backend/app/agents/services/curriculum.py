@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.agents.contracts import CurriculumAgent
-from app.agents.services.common import create_or_get, validate_agent_output
+from app.agents.services.common import create_or_get, create_or_replace, validate_agent_output
 from app.fixtures import canonical_demo as demo
 from app.schemas.curriculum import CurriculumAgentInput, CurriculumAgentOutput, CurriculumDTO
 from app.schemas.enums import CurriculumStatus
@@ -32,7 +32,13 @@ class CurriculumAgentService:
             learner_profile=goal.learner_profile,
             knowledge_map=knowledge_map,
             duration_weeks=goal.target_duration_weeks or demo.CURRICULUM.duration_weeks,
-            hours_per_week=goal.hours_per_week,
+            # goal.hours_per_week is an optional override; a workspace's goal
+            # never sets it (see workspace_factory.py), so fall back to the
+            # learner profile's own time-availability figure, which every
+            # goal always has.
+            hours_per_week=(
+                goal.hours_per_week or goal.learner_profile.time_availability_hours_per_week
+            ),
             critic_recommendations=recommendations,
         )
         output = validate_agent_output(
@@ -56,12 +62,21 @@ class CurriculumAgentService:
             created_at=demo.NOW,
             updated_at=demo.NOW,
         )
-        # A revision, or an explicit per-user curriculum_id, overwrites the
-        # existing curriculum in place (same ID, stable graph state) rather
-        # than relying on create-or-get's first-write-wins idempotency, which
-        # only fits the single demo pipeline's first pass.
-        if revision_attempt > 0 or curriculum_id is not None:
+        # A revision always targets an already-created curriculum (its own
+        # first pass created it), so this overwrites in place rather than
+        # relying on create-or-get's first-write-wins idempotency, which only
+        # fits the single demo pipeline's first pass.
+        if revision_attempt > 0:
             return self.curricula.save(curriculum)
+        # An explicit per-user curriculum_id (from workspace generation):
+        # create it fresh the first time, or overwrite in place on a repeat
+        # call.
+        if curriculum_id is not None:
+            return create_or_replace(
+                create=self.curricula.create,
+                save=self.curricula.save,
+                record=curriculum,
+            )
         return create_or_get(
             create=self.curricula.create,
             get=self.curricula.get_by_id,

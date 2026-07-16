@@ -25,9 +25,6 @@ from app.agents.services.activation import build_injected_agents, resolve_agent_
 from app.agents.services.workspace_generation import (
     WorkspaceGenerationService as WorkspaceGenerationService,
 )
-from app.agents.services.workspace_generation import (
-    WorkspaceNotSeededError as WorkspaceNotSeededError,
-)
 from app.core.settings import Settings
 from app.orchestration.nodes import ServiceContainerProtocol
 

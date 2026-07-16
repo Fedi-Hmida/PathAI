@@ -6,15 +6,8 @@ from app.fixtures import canonical_demo as demo
 from app.fixtures.workspace_factory import WorkspaceBundle, build_user_workspace
 from app.repositories.errors import DuplicateRecordError
 from app.repositories.protocols import (
-    AdaptationRepository,
-    CriticReviewRepository,
-    CurriculumRepository,
-    EvaluationRepository,
     GoalRepository,
-    KnowledgeMapRepository,
     OrchestrationRunRepository,
-    ProgressRepository,
-    QuizRepository,
     ResourceRepository,
 )
 from app.schemas.auth import UserDTO
@@ -28,19 +21,15 @@ class WorkspaceExistsError(Exception):
 
 @dataclass(slots=True)
 class WorkspaceService:
-    """Creates, resolves, and resets a caller's private, owned copy of the
-    canonical demo workspace. Only reachable while auth is enabled."""
+    """Creates, resolves, and resets a caller's private, owned workspace root
+    (goal + orchestration run). Only reachable while auth is enabled. Holds no
+    reference to downstream artifact repositories - a fresh workspace seeds
+    none of them (provenance audit finding B5); they're populated later by
+    the real generation/agent pipelines that own them."""
 
     goals: GoalRepository
     orchestration_runs: OrchestrationRunRepository
-    knowledge_maps: KnowledgeMapRepository
-    curricula: CurriculumRepository
     resources: ResourceRepository
-    progress_states: ProgressRepository
-    quizzes: QuizRepository
-    adaptations: AdaptationRepository
-    critics: CriticReviewRepository
-    evaluations: EvaluationRepository
 
     def get_run_id(self, user: UserDTO) -> RunId | None:
         goal = self.goals.find_by_owner(user.user_id)
@@ -74,8 +63,10 @@ class WorkspaceService:
         existing = self.goals.find_by_owner(user.user_id)
         if existing is not None:
             # Detach the two ownership roots. Every artifact authorizes through
-            # its goal, so removing the goal makes the old graph unreachable.
-            # (Cascade-deleting the orphaned artifacts is a documented follow-up.)
+            # its goal, so removing the goal makes any real artifacts the
+            # caller had already generated (knowledge map, curriculum, ...)
+            # unreachable. (Cascade-deleting those orphans is a documented
+            # follow-up.)
             self.orchestration_runs.delete(existing.run_id)
             self.goals.delete(existing.goal_id)
         bundle = build_user_workspace(
@@ -90,16 +81,6 @@ class WorkspaceService:
         self._ensure_corpus()
         self.goals.create(bundle.goal)
         self.orchestration_runs.create(bundle.run)
-        self.knowledge_maps.create(bundle.knowledge_map)
-        self.curricula.create(bundle.curriculum)
-        for attachment in bundle.resource_attachments:
-            self.resources.create_attachment(attachment)
-        self.progress_states.create(bundle.progress_state)
-        self.quizzes.create_quiz(bundle.quiz)
-        self.quizzes.create_attempt(bundle.quiz_attempt)
-        self.adaptations.create(bundle.adaptation_event)
-        self.critics.create(bundle.critic_review)
-        self.evaluations.create(bundle.evaluation_report)
 
     def _ensure_corpus(self) -> None:
         # The curated resource corpus is shared, global reference data. Seed it

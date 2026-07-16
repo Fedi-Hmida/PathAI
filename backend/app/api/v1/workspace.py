@@ -59,10 +59,10 @@ def generate_my_workspace(
     workspace: WorkspaceServiceDependency,
     generation: WorkspaceGenerationServiceDependency,
 ) -> WorkspaceGenerationResult:
-    """Regenerate the caller's knowledge map + curriculum from their own
-    completed live assessment, replacing the demo-clone content seeded at
-    workspace creation. AssessmentNotCompleteError -> 409 and
-    WorkspaceNotSeededError -> 500 via the registered exception handlers."""
+    """Build (or regenerate) the caller's knowledge map + curriculum from
+    their own completed live assessment. A fresh workspace seeds neither, so
+    the first call creates them; later calls regenerate in place.
+    AssessmentNotCompleteError -> 409 via the registered exception handler."""
     goal = workspace.get_owned_goal(user)
     if goal is None:
         raise HTTPException(status_code=404, detail="no workspace")

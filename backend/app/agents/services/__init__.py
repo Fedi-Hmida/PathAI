@@ -19,7 +19,6 @@ from app.agents.services.resource import ResourceAgentService
 from app.agents.services.workspace_generation import (
     AssessmentNotCompleteError,
     WorkspaceGenerationService,
-    WorkspaceNotSeededError,
 )
 
 __all__ = [
@@ -40,6 +39,5 @@ __all__ = [
     "QuizAgentService",
     "ResourceAgentService",
     "WorkspaceGenerationService",
-    "WorkspaceNotSeededError",
     "build_mock_agent_service_bundle",
 ]

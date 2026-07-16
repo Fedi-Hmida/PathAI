@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.agents.contracts import KnowledgeMapAgent
-from app.agents.services.common import create_or_get, validate_agent_output
+from app.agents.services.common import create_or_get, create_or_replace, validate_agent_output
 from app.fixtures import canonical_demo as demo
 from app.schemas.assessment import AssessmentAnswerDTO, AssessmentSessionDTO
 from app.schemas.enums import KnowledgeMapStatus
@@ -55,12 +55,16 @@ class KnowledgeMapAgentService:
             created_at=demo.NOW,
             updated_at=demo.NOW,
         )
-        # An explicit ID means we're regenerating a workspace's own knowledge
-        # map in place (it already exists from workspace seeding), so this
-        # must overwrite rather than no-op on the first-write-wins semantics
-        # create_or_get uses for the single demo pipeline.
+        # An explicit ID means a per-user workspace regeneration: create it
+        # fresh the first time, or overwrite in place on a repeat call -
+        # unlike create_or_get's first-write-wins semantics, which fits only
+        # the single fixed-ID demo pipeline below.
         if knowledge_map_id is not None:
-            return self.knowledge_maps.save(knowledge_map)
+            return create_or_replace(
+                create=self.knowledge_maps.create,
+                save=self.knowledge_maps.save,
+                record=knowledge_map,
+            )
         return create_or_get(
             create=self.knowledge_maps.create,
             get=self.knowledge_maps.get_by_id,

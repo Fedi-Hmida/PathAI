@@ -34,3 +34,21 @@ def create_or_get(
         return create(record)
     except DuplicateRecordError:
         return get(record_id)
+
+
+def create_or_replace(
+    *,
+    create: Callable[[ModelT], ModelT],
+    save: Callable[[ModelT], ModelT],
+    record: ModelT,
+) -> ModelT:
+    """Create a record under its (possibly caller-chosen) ID, or overwrite it
+    in place if that ID is already taken - unlike `create_or_get`, which
+    discards the newly built record in favor of whatever already exists.
+    Fits per-user regeneration: the first call mints a fresh ID (create), a
+    repeat call reuses the goal's existing ID and must persist the newly
+    regenerated content (save), not silently keep the stale one."""
+    try:
+        return create(record)
+    except DuplicateRecordError:
+        return save(record)

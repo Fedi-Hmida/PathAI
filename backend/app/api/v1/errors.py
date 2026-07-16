@@ -11,7 +11,6 @@ from app.orchestration.assessment_agent_gateway import (
 )
 from app.orchestration.workspace_generation_gateway import (
     AssessmentNotCompleteError,
-    WorkspaceNotSeededError,
 )
 from app.repositories.errors import DuplicateRecordError, NotFoundError, RepositoryError
 from app.services.auth import (
@@ -125,12 +124,3 @@ def register_api_exception_handlers(app: FastAPI) -> None:
             content={"detail": "complete your diagnostic assessment first"},
         )
 
-    @app.exception_handler(WorkspaceNotSeededError)
-    async def workspace_not_seeded_handler(
-        _request: Request,
-        _error: WorkspaceNotSeededError,
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "workspace was not seeded correctly"},
-        )

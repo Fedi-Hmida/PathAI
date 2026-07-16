@@ -80,22 +80,40 @@ def test_generate_before_assessment_completes_is_a_conflict(auth_enabled_app: No
     assert response.status_code == 409
 
 
-def test_generate_after_completed_assessment_replaces_demo_clone_content(
+def test_generate_before_assessment_seeds_no_demo_clone_content(
     auth_enabled_app: None,
 ) -> None:
     client = TestClient(create_app())
     token = _register(client, "learner@example.com")
     goal_text = "Learn classical guitar for a wedding performance"
     run_id = _create_workspace(client, token, goal_text=goal_text).json()["run_id"]
+
     dashboard_before = client.get(
         f"/api/v1/dashboard/{run_id}",
         headers=_auth_header(token),
     ).json()
-    demo_artifact_ids = dashboard_before["navigation_summary"]["artifact_ids"]
-    demo_knowledge_map_id = demo_artifact_ids["knowledge_map_id"]
-    demo_curriculum_id = demo_artifact_ids["curriculum_id"]
-    # The seeded goal text is already the caller's own, not the RAG demo's.
+
     assert dashboard_before["goal_summary"]["text"] == goal_text
+    assert dashboard_before["run_summary"]["status"] == "queued"
+    artifact_ids = dashboard_before["navigation_summary"]["artifact_ids"]
+    assert "knowledge_map_id" not in artifact_ids
+    assert "curriculum_id" not in artifact_ids
+    assert dashboard_before["knowledge_map_summary"] is None
+    assert dashboard_before["curriculum_summary"] is None
+    assert dashboard_before["quiz_summary"] is None
+    assert dashboard_before["critic_summary"] is None
+    assert dashboard_before["evaluation_summary"] is None
+    assert dashboard_before["progress_summary"] is None
+    assert dashboard_before["resources_summary"]["total_attached"] == 0
+
+
+def test_generate_after_completed_assessment_creates_fresh_real_content(
+    auth_enabled_app: None,
+) -> None:
+    client = TestClient(create_app())
+    token = _register(client, "learner@example.com")
+    goal_text = "Learn classical guitar for a wedding performance"
+    run_id = _create_workspace(client, token, goal_text=goal_text).json()["run_id"]
 
     _complete_assessment(client, token)
 
@@ -103,9 +121,9 @@ def test_generate_after_completed_assessment_replaces_demo_clone_content(
 
     assert response.status_code == 200
     body = response.json()
-    # Same IDs (regenerated in place), not the demo's IDs.
-    assert body["knowledge_map_id"] == demo_knowledge_map_id
-    assert body["curriculum_id"] == demo_curriculum_id
+    # Fresh IDs, never the canonical demo's.
+    assert body["knowledge_map_id"] != "kmap_demo_rag"
+    assert body["curriculum_id"] != "curriculum_demo_rag_v1"
 
     dashboard_after = client.get(
         f"/api/v1/dashboard/{run_id}",
@@ -113,6 +131,17 @@ def test_generate_after_completed_assessment_replaces_demo_clone_content(
     ).json()
     assert dashboard_after["assessment_summary"] is not None
     assert dashboard_after["goal_summary"]["text"] == goal_text
+    assert dashboard_after["knowledge_map_summary"] is not None
+    assert dashboard_after["curriculum_summary"] is not None
+    artifact_ids = dashboard_after["navigation_summary"]["artifact_ids"]
+    assert artifact_ids["knowledge_map_id"] == body["knowledge_map_id"]
+    assert artifact_ids["curriculum_id"] == body["curriculum_id"]
+    # The other six tiles stay honestly empty - Step 2 (out of scope here).
+    assert dashboard_after["quiz_summary"] is None
+    assert dashboard_after["critic_summary"] is None
+    assert dashboard_after["evaluation_summary"] is None
+    assert dashboard_after["progress_summary"] is None
+    assert dashboard_after["resources_summary"]["total_attached"] == 0
 
 
 def test_generate_is_callable_again_and_still_succeeds(auth_enabled_app: None) -> None:

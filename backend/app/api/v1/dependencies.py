@@ -141,14 +141,7 @@ class ApiServiceContainer:
         self.workspace_service = WorkspaceService(
             goals=self.goal_repository,
             orchestration_runs=self.orchestration_run_repository,
-            knowledge_maps=self.knowledge_map_repository,
-            curricula=self.curriculum_repository,
             resources=self.resource_repository,
-            progress_states=self.progress_repository,
-            quizzes=self.quiz_repository,
-            adaptations=self.adaptation_repository,
-            critics=self.critic_repository,
-            evaluations=self.evaluation_repository,
         )
 
     def clear(self) -> None:
