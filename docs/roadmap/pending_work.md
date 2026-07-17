@@ -26,12 +26,14 @@ the repo fresh elsewhere; the highest-numbered `rebuild-N/` there is the real cu
 | B3/B6 | Detoxed deterministic assessment agent — real self-rating questions, real scoring (was previously a fixed lookup that never read the learner's actual answer) | Rebuild-35 |
 | B3-class | Detoxed deterministic quiz agent — curriculum-derived MC questions, real per-quiz scoring (also fixed grading being keyed to a global bank instead of the actual administered quiz) | Rebuild-36 |
 | B5 step 3 | Wired quiz generation into per-user `generate()` — real `QuizDTO` + scored `QuizAttemptDTO`, fresh IDs via `create_or_replace`, deleted the service-layer RAG-demo `target_concepts` fallback, transient (not persisted) progress-state seed for first-time learners | Rebuild-37 |
+| — | Threaded the generated quiz attempt into the evaluation agent call — `generate()` now builds the quiz before the evaluation report and passes the real `quiz_attempt` in, so `quiz_alignment` and related metrics/recommendations stop scoring a real quiz as absent | Rebuild-37 follow-up |
 
 All five detoxed deterministic agents (curriculum, critic, knowledge-map, assessment, quiz) are
 now genuinely topic-general — verified with synthetic non-RAG unit tests plus live HTTP
 verification for non-RAG goals. `generate()` now produces all five per-user artifacts (knowledge
-map, curriculum, critic review, evaluation report, quiz + attempt); `dashboard.quiz_summary` is
-populated, not `None`. Offline suite: 442 passed / 26 skipped, ruff + mypy clean as of Rebuild-37.
+map, curriculum, critic review, evaluation report, quiz + attempt) in dependency order (quiz before
+evaluation, so evaluation sees real quiz data); `dashboard.quiz_summary` is populated, not `None`.
+Offline suite: 442 passed / 26 skipped, ruff + mypy clean.
 
 ## 2. Backend — in flight, approved, not yet coded
 
@@ -48,12 +50,9 @@ Nothing queued right now — see §3 for the next real gaps and §7 for suggeste
   minimal, in-memory seed purely for quiz generation's benefit (`_progress_state_for_quiz` in
   `workspace_generation.py`). No real progress-tracking loop exists.
 - **Adaptation is not generated at all** — `adaptation_summary` stays `None`; no adaptation agent
-  is invoked from `generate()` or anywhere in the per-user path.
-- **Evaluation doesn't consume the quiz attempt Rebuild-37 now generates** — `generate()` still
-  calls the evaluation agent with `quiz_attempt=None`, so the evaluation report's quiz-alignment
-  metric scores as if no quiz existed even though one now does for every real user. Small, isolated
-  fix (thread the just-built `quiz_attempt` into the existing `evaluation_agent.evaluate()` call) —
-  left out of Rebuild-37 because evaluation wiring was explicitly out of that phase's scope.
+  is invoked from `generate()` or anywhere in the per-user path (`evaluation_agent.evaluate()` is
+  still called with `adaptation_event=None` — this is the one artifact evaluation still honestly
+  scores as absent, since adaptation generation itself doesn't exist yet).
 - **B9** (Medium, data lifecycle) — `knowledge_map.assessment_session_id` can dangle at seed time;
   tolerated today because `dashboard.py` swallows the `NotFoundError` and shows
   `assessment_summary=None` until a live session exists. Not urgent, but a known rough edge.
@@ -127,9 +126,7 @@ real as of Rebuild-33/37; none is blocked on further backend work.
 
 ## 7. Suggested next-phase order
 
-1. **Thread the quiz attempt into the evaluation agent call** (small, isolated — see §3) so the
-   evaluation report's quiz-alignment metric stops scoring a real quiz as absent.
-2. **Quiz + Critic + Evaluation detail pages** (P5, partial) — data's already real for all three,
+1. **Quiz + Critic + Evaluation detail pages** (P5, partial) — data's already real for all three,
    purely additive frontend work, no backend dependency.
-3. **Adaptation/Resources/Progress/Goal pages + Agents retirement** (rest of P5) — resources/progress/adaptation pages will show honest "not yet generated" states until their own backend phases (§3) land; that's an acceptable interim per P5's own acceptance criteria ("no dead placeholder shows *fabricated* data" — an honest empty state is fine, silence via missing route is not).
-4. Backend §3 items (resources/progress/adaptation generation, B9, P6, P7) as their own future phases — bigger lifts, lower urgency than the above.
+2. **Adaptation/Resources/Progress/Goal pages + Agents retirement** (rest of P5) — resources/progress/adaptation pages will show honest "not yet generated" states until their own backend phases (§3) land; that's an acceptable interim per P5's own acceptance criteria ("no dead placeholder shows *fabricated* data" — an honest empty state is fine, silence via missing route is not).
+3. Backend §3 items (resources/progress/adaptation generation, B9, P6, P7) as their own future phases — bigger lifts, lower urgency than the above.
