@@ -124,6 +124,8 @@ def test_generate_after_completed_assessment_creates_fresh_real_content(
     # Fresh IDs, never the canonical demo's.
     assert body["knowledge_map_id"] != "kmap_demo_rag"
     assert body["curriculum_id"] != "curriculum_demo_rag_v1"
+    assert body["critic_review_id"] != "critic_demo_rag"
+    assert body["evaluation_report_id"] != "eval_demo_rag"
 
     dashboard_after = client.get(
         f"/api/v1/dashboard/{run_id}",
@@ -136,12 +138,22 @@ def test_generate_after_completed_assessment_creates_fresh_real_content(
     artifact_ids = dashboard_after["navigation_summary"]["artifact_ids"]
     assert artifact_ids["knowledge_map_id"] == body["knowledge_map_id"]
     assert artifact_ids["curriculum_id"] == body["curriculum_id"]
-    # The other six tiles stay honestly empty - Step 2 (out of scope here).
+    assert artifact_ids["critic_review_id"] == body["critic_review_id"]
+    assert artifact_ids["evaluation_report_id"] == body["evaluation_report_id"]
+    # Step 2: critic + evaluation are now real, derived from this workspace's
+    # own knowledge map/curriculum (see test_critic_behavior.py for the
+    # RAG-vocabulary-free unit check on the critic's own logic).
+    critic_summary = dashboard_after["critic_summary"]
+    assert critic_summary is not None
+    assert 0.0 <= critic_summary["overall_score"] <= 1.0
+    evaluation_summary = dashboard_after["evaluation_summary"]
+    assert evaluation_summary is not None
+    assert 0.0 <= evaluation_summary["overall_score"] <= 1.0
+    # The remaining four tiles stay honestly empty - future phase.
     assert dashboard_after["quiz_summary"] is None
-    assert dashboard_after["critic_summary"] is None
-    assert dashboard_after["evaluation_summary"] is None
     assert dashboard_after["progress_summary"] is None
     assert dashboard_after["resources_summary"]["total_attached"] == 0
+    assert dashboard_after["adaptation_summary"]["recent_events"] == []
 
 
 def test_generate_is_callable_again_and_still_succeeds(auth_enabled_app: None) -> None:

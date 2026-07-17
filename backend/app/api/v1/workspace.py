@@ -59,15 +59,19 @@ def generate_my_workspace(
     workspace: WorkspaceServiceDependency,
     generation: WorkspaceGenerationServiceDependency,
 ) -> WorkspaceGenerationResult:
-    """Build (or regenerate) the caller's knowledge map + curriculum from
-    their own completed live assessment. A fresh workspace seeds neither, so
-    the first call creates them; later calls regenerate in place.
+    """Build (or regenerate) the caller's knowledge map, curriculum, critic
+    review, and evaluation report from their own completed live assessment.
+    A fresh workspace seeds none of them, so the first call creates them;
+    later calls regenerate in place. Quiz, resources, progress, and
+    adaptation stay honestly absent (future phase).
     AssessmentNotCompleteError -> 409 via the registered exception handler."""
     goal = workspace.get_owned_goal(user)
     if goal is None:
         raise HTTPException(status_code=404, detail="no workspace")
-    knowledge_map, curriculum = generation.generate(goal)
+    artifacts = generation.generate(goal)
     return WorkspaceGenerationResult(
-        knowledge_map_id=knowledge_map.knowledge_map_id,
-        curriculum_id=curriculum.curriculum_id,
+        knowledge_map_id=artifacts.knowledge_map.knowledge_map_id,
+        curriculum_id=artifacts.curriculum.curriculum_id,
+        critic_review_id=artifacts.critic_review.critic_review_id,
+        evaluation_report_id=artifacts.evaluation_report.evaluation_report_id,
     )

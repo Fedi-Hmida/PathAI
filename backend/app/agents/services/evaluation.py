@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from app.agents.contracts import EvaluationAgent
 from app.agents.deterministic.evaluation import EVALUATION_WEIGHTS
-from app.agents.services.common import create_or_get, validate_agent_output
+from app.agents.services.common import create_or_get, create_or_replace, validate_agent_output
 from app.fixtures import canonical_demo as demo
 from app.schemas.adaptation import AdaptationEventDTO
 from app.schemas.assessment import AssessmentSessionDTO
@@ -33,6 +33,8 @@ class EvaluationAgentService:
         critic_review: CriticReviewDTO | None,
         quiz_attempt: QuizAttemptDTO | None,
         adaptation_event: AdaptationEventDTO | None,
+        *,
+        evaluation_report_id: str | None = None,
     ) -> EvaluationReportDTO:
         payload = EvaluationAgentInput(
             goal=goal,
@@ -50,7 +52,7 @@ class EvaluationAgentService:
             payload=self.agent.evaluate_run(payload),
         )
         report = EvaluationReportDTO(
-            evaluation_report_id=demo.EVALUATION_REPORT_ID,
+            evaluation_report_id=evaluation_report_id or demo.EVALUATION_REPORT_ID,
             goal_id=goal.goal_id,
             run_id=goal.run_id,
             metric_scores=output.metric_scores,
@@ -71,6 +73,15 @@ class EvaluationAgentService:
             created_at=demo.NOW,
             updated_at=demo.NOW,
         )
+        # An explicit per-user evaluation_report_id (from workspace
+        # generation): create it fresh the first time, or overwrite in place
+        # on a repeat call.
+        if evaluation_report_id is not None:
+            return create_or_replace(
+                create=self.evaluations.create,
+                save=self.evaluations.save,
+                record=report,
+            )
         return create_or_get(
             create=self.evaluations.create,
             get=self.evaluations.get_by_id,

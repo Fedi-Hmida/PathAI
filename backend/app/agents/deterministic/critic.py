@@ -7,16 +7,10 @@ from app.schemas.critic import (
 )
 from app.schemas.curriculum import CurriculumDTO, CurriculumTopicDTO
 from app.schemas.enums import CriticPassStatus
+from app.schemas.knowledge_map import KnowledgeMapDTO
 from app.schemas.resource import ResourceAttachmentDTO
 
 MAX_DEMO_WEEK_HOURS = 7.0
-
-PREREQUISITES: dict[str, tuple[str, ...]] = {
-    "vector_search": ("embeddings",),
-    "retrieval_evaluation": ("retrieval",),
-    "reranking": ("retrieval_evaluation",),
-    "production_rag_failures": ("hallucination_reduction",),
-}
 
 
 def build_critic_output(payload: CriticAgentInput) -> CriticAgentOutput:
@@ -31,7 +25,7 @@ def build_critic_output(payload: CriticAgentInput) -> CriticAgentOutput:
         for week in payload.curriculum.weeks
         if week.estimated_hours > MAX_DEMO_WEEK_HOURS
     ]
-    prerequisite_issues = _prerequisite_issues(payload.curriculum)
+    prerequisite_issues = _prerequisite_issues(payload.curriculum, payload.knowledge_map)
     diversity_score = _diversity_score(payload.resource_attachments)
 
     dimension_scores = CriticDimensionScores(
@@ -155,7 +149,7 @@ def _strengths(
     if not uncovered:
         strengths.append("Weak and missing concepts are explicitly represented in the curriculum.")
     if not prerequisite_issues:
-        strengths.append("Prerequisites appear before advanced RAG topics.")
+        strengths.append("Prerequisites are sequenced correctly before dependent topics.")
     if _practice_ratio(curriculum) >= 0.65:
         strengths.append("Most topics include hands-on practice tasks.")
     covered_topics = {attachment.topic_id for attachment in attachments}
@@ -206,7 +200,14 @@ def _pass_status(overall_score: float, issues: list[str]) -> CriticPassStatus:
     return CriticPassStatus.FAILED
 
 
-def _prerequisite_issues(curriculum: CurriculumDTO) -> list[str]:
+def _prerequisite_issues(curriculum: CurriculumDTO, knowledge_map: KnowledgeMapDTO) -> list[str]:
+    # Prerequisite pairs come from the knowledge map's own per-concept data
+    # (ConceptMasteryDTO.prerequisites), never a fixed topic-specific table -
+    # for a goal whose concepts carry no prerequisite data this correctly
+    # yields no issues, rather than fabricating a topic's dependencies.
+    prerequisites_by_concept = {
+        concept.concept_id: concept.prerequisites for concept in knowledge_map.concepts
+    }
     seen: set[str] = set()
     issues: list[str] = []
     for topic in sorted(_topics(curriculum), key=lambda item: item.sequence_order):
@@ -214,7 +215,7 @@ def _prerequisite_issues(curriculum: CurriculumDTO) -> list[str]:
             available = seen | set(topic.concept_ids)
             missing = [
                 item
-                for item in PREREQUISITES.get(concept, ())
+                for item in prerequisites_by_concept.get(concept, [])
                 if item not in available
             ]
             if missing:
