@@ -93,7 +93,7 @@ class QuizAgentService:
         score_output = validate_agent_output(
             agent_name=self.agent.agent_name,
             schema=QuizScoreOutput,
-            payload=self.agent.score_attempt(attempt_template),
+            payload=self.agent.score_attempt(attempt_template, saved_quiz.questions),
         )
         attempt = attempt_template.model_copy(
             update={

@@ -37,10 +37,10 @@ def test_progress_marks_low_quiz_topics_as_stuck_and_adaptation_needed() -> None
     assert quiz.quiz_id == demo.QUIZ_ID
     assert attempt.total_score < 0.65
     assert progress.status == ProgressStatus.ADAPTATION_NEEDED
-    assert by_topic["topic_retrieval_metrics"].status == TopicProgressStatus.STUCK
+    assert by_topic["topic_rag_foundations"].status == TopicProgressStatus.STUCK
     assert by_topic["topic_vector_search"].status == TopicProgressStatus.STUCK
     assert {event.topic_id for event in progress.stuck_events} >= {
-        "topic_retrieval_metrics",
+        "topic_rag_foundations",
         "topic_vector_search",
     }
 

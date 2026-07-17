@@ -15,7 +15,13 @@ from app.schemas.evaluation import EvaluationAgentInput, EvaluationAgentOutput
 from app.schemas.goal import LearningGoalDTO
 from app.schemas.knowledge_map import KnowledgeMapAgentInput, KnowledgeMapAgentOutput
 from app.schemas.progress import ProgressStateDTO
-from app.schemas.quiz import QuizAgentInput, QuizAgentOutput, QuizAttemptDTO, QuizScoreOutput
+from app.schemas.quiz import (
+    QuizAgentInput,
+    QuizAgentOutput,
+    QuizAttemptDTO,
+    QuizQuestionDTO,
+    QuizScoreOutput,
+)
 from app.schemas.resource import ResourceAgentInput, ResourceAgentOutput
 
 
@@ -67,7 +73,11 @@ class QuizAgent(Protocol):
 
     def build_quiz(self, payload: QuizAgentInput) -> QuizAgentOutput: ...
 
-    def score_attempt(self, attempt: QuizAttemptDTO) -> QuizScoreOutput: ...
+    def score_attempt(
+        self,
+        attempt: QuizAttemptDTO,
+        questions: list[QuizQuestionDTO],
+    ) -> QuizScoreOutput: ...
 
 
 class AdapterAgent(Protocol):
