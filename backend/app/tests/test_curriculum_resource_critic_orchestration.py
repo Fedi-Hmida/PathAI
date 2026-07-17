@@ -48,7 +48,7 @@ def test_orchestration_deepens_curriculum_resource_and_critic_steps() -> None:
     assert result.state.status == OrchestrationStatus.COMPLETED
     assert result.state.curriculum_id == demo.CURRICULUM_ID
     assert result.state.critic_review_id == demo.CRITIC_REVIEW_ID
-    assert {"retrieval_evaluation", "vector_search", "reranking"} <= topic_concepts
+    assert {"retrieval_evaluation", "vector_search"} <= topic_concepts
     assert len(attachments) >= len([topic for week in curriculum.weeks for topic in week.topics])
     assert critic.overall_score >= 0.85
     assert critic.issues == []

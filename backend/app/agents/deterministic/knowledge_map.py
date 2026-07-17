@@ -10,41 +10,6 @@ from app.schemas.knowledge_map import (
     KnowledgeMapAgentOutput,
 )
 
-MISSING_CURRICULUM_READY_CONCEPTS: tuple[str, ...] = (
-    "reranking",
-    "production_rag_failures",
-)
-
-_LABELS: dict[str, str] = {
-    "api_basics": "API basics",
-    "chunking": "Chunking strategy",
-    "embeddings": "Embeddings",
-    "hallucination_reduction": "Hallucination reduction",
-    "machine_learning_basics": "Machine learning basics",
-    "production_rag_failures": "Production RAG failure modes",
-    "python_basics": "Python basics",
-    "rag_fundamentals": "RAG fundamentals",
-    "reranking": "Reranking",
-    "retrieval": "Retrieval",
-    "retrieval_evaluation": "Retrieval evaluation",
-    "vector_search": "Vector search",
-}
-
-_RECOMMENDED_ACTIONS: dict[str, str] = {
-    "chunking": "Practice chunk-size and overlap tradeoffs with toy documents.",
-    "embeddings": "Review how embeddings represent semantic similarity.",
-    "production_rag_failures": "Add examples of production RAG failure modes.",
-    "reranking": "Introduce reranking after retrieval metrics are stable.",
-    "retrieval_evaluation": "Add retrieval metrics practice before project integration.",
-    "vector_search": "Review vector similarity and index behavior.",
-}
-
-_PREREQUISITES: dict[str, list[str]] = {
-    "reranking": ["retrieval_evaluation"],
-    "retrieval_evaluation": ["retrieval"],
-    "vector_search": ["embeddings"],
-}
-
 
 def build_knowledge_map_output(payload: KnowledgeMapAgentInput) -> KnowledgeMapAgentOutput:
     evidence_by_concept = {item.concept_id: item for item in payload.concept_evidence}
@@ -78,12 +43,12 @@ def _concept_mastery(
     classification = _classification_for_score(score, has_evidence=evidence is not None)
     return ConceptMasteryDTO(
         concept_id=concept_id,
-        label=_LABELS.get(concept_id, concept_id.replace("_", " ").title()),
+        label=concept_id.replace("_", " ").title(),
         mastery_score=score,
         classification=classification,
         evidence=evidence.evidence if evidence else ["No direct diagnostic evidence yet."],
-        prerequisites=_PREREQUISITES.get(concept_id, []),
-        recommended_action=_recommended_action(concept_id, classification),
+        prerequisites=[],
+        recommended_action=_recommended_action(classification),
         confidence=0.82 if evidence else 0.45,
     )
 
@@ -112,31 +77,7 @@ def _ordered_concepts(
         for concept_id in answer.question.target_concepts
     ]
     concepts = [*evidence_by_concept, *from_answers]
-    # These two are RAG-specific follow-up concepts - only meaningful (and
-    # only added) when this workspace's own evidence is already RAG-related.
-    # Otherwise every knowledge map, regardless of topic, would show
-    # "Reranking"/"Production RAG failure modes" as missing concepts.
-    if {"rag_fundamentals", "retrieval"} & set(concepts):
-        concepts.extend(MISSING_CURRICULUM_READY_CONCEPTS)
-    preferred_order = [
-        "rag_fundamentals",
-        "retrieval",
-        "api_basics",
-        "python_basics",
-        "machine_learning_basics",
-        "chunking",
-        "embeddings",
-        "retrieval_evaluation",
-        "vector_search",
-        "hallucination_reduction",
-        "production_rag_failures",
-        "reranking",
-    ]
-    unique = _unique(concepts)
-    return [
-        *[concept for concept in preferred_order if concept in unique],
-        *sorted(concept for concept in unique if concept not in preferred_order),
-    ]
+    return _unique(concepts)
 
 
 def _concept_ids_for(
@@ -177,24 +118,16 @@ def _summary(
     )
 
 
-def _recommended_action(
-    concept_id: str,
-    classification: ConceptClassification,
-) -> str | None:
+def _recommended_action(classification: ConceptClassification) -> str | None:
     if classification in {ConceptClassification.WEAK, ConceptClassification.MISSING}:
-        return _RECOMMENDED_ACTIONS.get(
-            concept_id,
-            "Add targeted practice before moving deeper.",
-        )
-    if classification == ConceptClassification.DEVELOPING:
-        return _RECOMMENDED_ACTIONS.get(concept_id)
+        return "Add targeted practice before moving deeper."
     return None
 
 
 def _format_concepts(concepts: list[str]) -> str:
     if not concepts:
         return "none"
-    labels = [_LABELS.get(concept, concept.replace("_", " ")) for concept in concepts]
+    labels = [concept.replace("_", " ") for concept in concepts]
     return ", ".join(labels)
 
 

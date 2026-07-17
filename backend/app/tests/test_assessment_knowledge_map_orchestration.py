@@ -37,7 +37,7 @@ def test_orchestration_uses_agent_backed_assessment_and_knowledge_map() -> None:
     knowledge_map = container.knowledge_map_service.get_by_id(demo.KNOWLEDGE_MAP_ID)
     assert len(assessment.concept_evidence) >= 6
     assert "retrieval_evaluation" in knowledge_map.weak_concepts
-    assert "reranking" in knowledge_map.missing_concepts
+    assert "production_rag_failures" in knowledge_map.missing_concepts
     assert not _contains_forbidden_state_type(workflow_state_to_graph_state(result.state))
 
 
