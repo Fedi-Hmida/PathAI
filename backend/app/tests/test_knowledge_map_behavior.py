@@ -34,11 +34,19 @@ def test_knowledge_map_is_generated_from_assessment_evidence() -> None:
 
     assert knowledge_map.status == KnowledgeMapStatus.ACTIVE
     assert knowledge_map.confidence >= 0.70
-    assert "rag_fundamentals" in knowledge_map.strong_concepts
-    assert "chunking" in knowledge_map.developing_concepts
+    # The first 5 target concepts get a self-rating question each; the demo
+    # goal's learner profile marks vector_search/chunking/retrieval_evaluation
+    # as weak areas (self-rated low) and leaves rag_fundamentals/embeddings
+    # neutral. The profile's strengths (python_basics, machine_learning_basics,
+    # api_basics) are never asked about but are still added as evidence.
+    assert "rag_fundamentals" in knowledge_map.developing_concepts
+    assert "embeddings" in knowledge_map.developing_concepts
     assert "retrieval_evaluation" in knowledge_map.weak_concepts
     assert "vector_search" in knowledge_map.weak_concepts
-    assert "production_rag_failures" in knowledge_map.missing_concepts
+    assert "chunking" in knowledge_map.weak_concepts
+    assert "python_basics" in knowledge_map.strong_concepts
+    assert "machine_learning_basics" in knowledge_map.strong_concepts
+    assert "api_basics" in knowledge_map.strong_concepts
     assert "Recommended level: intermediate" in knowledge_map.summary
 
 

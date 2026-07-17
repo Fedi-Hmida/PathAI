@@ -14,7 +14,7 @@ from app.schemas.assessment import (
     ConceptEvidence,
     ConceptEvidenceUpdate,
 )
-from app.schemas.enums import AssessmentStatus, DifficultyLevel
+from app.schemas.enums import AssessmentStatus, DifficultyLevel, QuestionType
 from app.schemas.goal import LearnerProfile, LearningGoalDTO
 
 CANONICAL_DIAGNOSTIC_CONCEPTS: tuple[str, ...] = (
@@ -44,106 +44,13 @@ _QUESTION_GAIN: dict[DifficultyLevel, float] = {
     DifficultyLevel.ADVANCED: 0.82,
 }
 
-_SEEDED_ANSWERS: dict[str, dict[str, object]] = {
-    "question_assess_retriever_role": {
-        "answer_id": "answer_demo_retriever_role",
-        "selected_options": ["Retriever"],
-    },
-    "question_assess_recall_at_k": {
-        "answer_id": "answer_demo_recall_at_k",
-        "answer_text": "It checks if answers are good.",
-    },
-    "question_assess_chunking": {
-        "answer_id": "answer_demo_chunking",
-        "selected_options": ["It changes context granularity"],
-    },
-    "question_assess_embeddings": {
-        "answer_id": "answer_demo_embeddings",
-        "answer_text": "2",
-    },
-    "question_assess_failures": {
-        "answer_id": "answer_demo_production_failures",
-        "answer_text": "I am not sure yet.",
-    },
-}
-
-_SCORE_BLUEPRINTS: dict[str, tuple[float, tuple[ConceptEvidenceUpdate, ...], str]] = {
-    "question_assess_retriever_role": (
-        1.0,
-        (
-            ConceptEvidenceUpdate(
-                concept_id="rag_fundamentals",
-                score_delta=0.32,
-                evidence="Correctly identified retrieval responsibility.",
-            ),
-            ConceptEvidenceUpdate(
-                concept_id="retrieval",
-                score_delta=0.22,
-                evidence="Recognized the retrieval component in a RAG pipeline.",
-            ),
-        ),
-        "Strong understanding of the retriever role.",
-    ),
-    "question_assess_recall_at_k": (
-        0.25,
-        (
-            ConceptEvidenceUpdate(
-                concept_id="retrieval_evaluation",
-                score_delta=-0.30,
-                evidence="Confused retrieval quality with final answer quality.",
-            ),
-        ),
-        "Needs targeted practice with retrieval metrics.",
-    ),
-    "question_assess_chunking": (
-        0.62,
-        (
-            ConceptEvidenceUpdate(
-                concept_id="chunking",
-                score_delta=0.08,
-                evidence="Recognized that chunk size changes retrieval granularity.",
-            ),
-            ConceptEvidenceUpdate(
-                concept_id="retrieval",
-                score_delta=0.05,
-                evidence="Connected chunking choices to retrieval quality.",
-            ),
-        ),
-        "Developing understanding of chunking tradeoffs.",
-    ),
-    "question_assess_embeddings": (
-        0.35,
-        (
-            ConceptEvidenceUpdate(
-                concept_id="embeddings",
-                score_delta=-0.12,
-                evidence="Self-rated low confidence explaining semantic embeddings.",
-            ),
-            ConceptEvidenceUpdate(
-                concept_id="vector_search",
-                score_delta=-0.18,
-                evidence="Needs support connecting embeddings to vector search behavior.",
-            ),
-        ),
-        "Review embeddings and vector similarity before project integration.",
-    ),
-    "question_assess_failures": (
-        0.18,
-        (
-            ConceptEvidenceUpdate(
-                concept_id="production_rag_failures",
-                score_delta=-0.35,
-                evidence="Could not name a concrete production RAG failure mode.",
-            ),
-            ConceptEvidenceUpdate(
-                concept_id="hallucination_reduction",
-                score_delta=-0.15,
-                evidence="Needs clearer grounding and failure-mode vocabulary.",
-            ),
-        ),
-        "Add focused practice on production RAG failure modes.",
-    ),
-}
+_QUESTION_DIFFICULTY_BY_POSITION: tuple[DifficultyLevel, ...] = (
+    DifficultyLevel.BEGINNER,
+    DifficultyLevel.INTERMEDIATE,
+    DifficultyLevel.INTERMEDIATE,
+    DifficultyLevel.ADVANCED,
+    DifficultyLevel.ADVANCED,
+)
 
 
 def diagnostic_focus_for_goal(goal_text: str, learner_profile: LearnerProfile) -> list[str]:
@@ -178,15 +85,41 @@ def _keywords_from_goal_text(goal_text: str) -> list[str]:
 
 
 def build_question_output(payload: AssessmentAgentInput) -> AssessmentAgentOutput:
-    answered_question_ids = {
-        answer.question.question_id
+    answered_concepts = [
+        concept_id
         for answer in payload.prior_answers
-    }
-    question = _select_question(payload.target_concepts, answered_question_ids)
+        for concept_id in answer.question.target_concepts
+    ]
+    concept_id = _next_concept(payload.target_concepts, answered_concepts)
+    question = _question_for_concept(concept_id, index=len(payload.prior_answers))
     return AssessmentAgentOutput(
         question=question,
         rationale=_question_rationale(question),
         estimated_information_gain=_QUESTION_GAIN[question.difficulty],
+    )
+
+
+def _next_concept(target_concepts: list[str], answered_concepts: list[str]) -> str:
+    for concept_id in target_concepts:
+        if concept_id not in answered_concepts:
+            return concept_id
+    # Every target concept has already been asked at least once - cycle back
+    # for a second reading rather than crashing when there are fewer target
+    # concepts than the diagnostic's question limit.
+    return target_concepts[len(answered_concepts) % len(target_concepts)]
+
+
+def _question_for_concept(concept_id: str, *, index: int) -> AssessmentQuestionDTO:
+    label = concept_id.replace("_", " ")
+    difficulty = _QUESTION_DIFFICULTY_BY_POSITION[
+        min(index, len(_QUESTION_DIFFICULTY_BY_POSITION) - 1)
+    ]
+    return AssessmentQuestionDTO(
+        question_id=f"question_self_rating_{index}_{concept_id}",
+        question_type=QuestionType.SELF_RATING,
+        prompt=f"How confident are you in {label}? (1 = not at all, 5 = very confident)",
+        target_concepts=[concept_id],
+        difficulty=difficulty,
     )
 
 
@@ -195,20 +128,16 @@ def seeded_answer_for_question(
     goal: LearningGoalDTO,
     question: AssessmentQuestionDTO,
 ) -> AssessmentAnswerDTO:
-    seed = _SEEDED_ANSWERS.get(question.question_id, {})
-    answer_id = str(
-        seed.get(
-            "answer_id",
-            f"answer_demo_{question.question_id.removeprefix('question_')}",
-        ),
-    )
+    concept_id = question.target_concepts[0]
+    self_rating = _seeded_self_rating(concept_id, goal.learner_profile)
     return AssessmentAnswerDTO(
-        answer_id=answer_id,
+        answer_id=f"answer_demo_{question.question_id.removeprefix('question_')}",
         assessment_session_id=demo.ASSESSMENT_ID,
         goal_id=goal.goal_id,
         question=question,
-        answer_text=_optional_str(seed.get("answer_text")),
-        selected_options=_optional_str_list(seed.get("selected_options")),
+        answer_text=None,
+        selected_options=[],
+        self_rating=self_rating,
         score=0.0,
         concept_scores=[],
         feedback=None,
@@ -217,18 +146,58 @@ def seeded_answer_for_question(
     )
 
 
+def _seeded_self_rating(concept_id: str, learner_profile: LearnerProfile) -> int:
+    """A plausible simulated self-rating for the no-real-learner auto-run path.
+
+    Biased off the learner profile's own weak_areas/strengths - never
+    topic-specific - so a profile with no signal (the default for a real,
+    non-demo workspace) degrades to a neutral rating for every concept.
+    """
+    if concept_id in _safe_concepts(learner_profile.weak_areas):
+        return 2
+    if concept_id in _safe_concepts(learner_profile.strengths):
+        return 4
+    return 3
+
+
 def score_answer(answer: AssessmentAnswerDTO) -> AssessmentScoreOutput:
-    score, concept_scores, feedback = _SCORE_BLUEPRINTS.get(
-        answer.question.question_id,
-        _fallback_score(answer),
-    )
+    score = _score_for_self_rating(answer.self_rating)
+    concept_scores = [
+        ConceptEvidenceUpdate(
+            concept_id=concept_id,
+            score_delta=round((score - 0.5) * 2, 2),
+            evidence=_evidence_text(concept_id, answer.self_rating),
+        )
+        for concept_id in answer.question.target_concepts
+    ]
     return AssessmentScoreOutput(
         answer_id=answer.answer_id,
         score=score,
-        concept_scores=list(concept_scores),
-        feedback=feedback,
-        confidence_after_answer=_confidence_after_answer(answer.question.question_id),
+        concept_scores=concept_scores,
+        feedback=_feedback_for_score(score),
+        confidence_after_answer=_confidence_after_answer(score),
     )
+
+
+def _score_for_self_rating(self_rating: int | None) -> float:
+    if self_rating is None:
+        return 0.5
+    return round((self_rating - 1) / 4, 2)
+
+
+def _evidence_text(concept_id: str, self_rating: int | None) -> str:
+    label = concept_id.replace("_", " ")
+    if self_rating is None:
+        return f"No self-rating provided for {label}."
+    return f"Learner self-rated {self_rating}/5 confidence in {label}."
+
+
+def _feedback_for_score(score: float) -> str:
+    if score < 0.35:
+        return "Add targeted practice before moving deeper."
+    if score < 0.65:
+        return "Developing understanding - keep reinforcing with practice."
+    return "Strong self-reported understanding."
 
 
 def build_scored_answer(
@@ -306,68 +275,18 @@ def assessment_confidence(*, answer_count: int, evidence_count: int) -> float:
     return round(min(0.88, confidence), 2)
 
 
-def _select_question(
-    target_concepts: list[str],
-    answered_question_ids: set[str],
-) -> AssessmentQuestionDTO:
-    target_set = set(target_concepts)
-    for question in demo.ASSESSMENT_QUESTIONS:
-        if question.question_id in answered_question_ids:
-            continue
-        if target_set.intersection(question.target_concepts):
-            return question.model_copy(deep=True)
-    for question in demo.ASSESSMENT_QUESTIONS:
-        if question.question_id not in answered_question_ids:
-            return question.model_copy(deep=True)
-    return demo.ASSESSMENT_QUESTIONS[-1].model_copy(deep=True)
-
-
 def _question_rationale(question: AssessmentQuestionDTO) -> str:
     concepts = ", ".join(question.target_concepts)
     return f"Checks deterministic diagnostic evidence for: {concepts}."
 
 
-def _fallback_score(
-    answer: AssessmentAnswerDTO,
-) -> tuple[float, tuple[ConceptEvidenceUpdate, ...], str]:
-    concept_scores = tuple(
-        ConceptEvidenceUpdate(
-            concept_id=concept_id,
-            score_delta=0.0,
-            evidence="Deterministic fallback evidence for an unrecognized question.",
-        )
-        for concept_id in answer.question.target_concepts
-    )
-    return 0.5, concept_scores, "Fallback deterministic assessment score."
-
-
-def _confidence_after_answer(question_id: str) -> float:
-    order = [question.question_id for question in demo.ASSESSMENT_QUESTIONS]
-    try:
-        index = order.index(question_id) + 1
-    except ValueError:
-        index = 1
-    return assessment_confidence(answer_count=index, evidence_count=min(index + 2, 8))
+def _confidence_after_answer(score: float) -> float:
+    decisiveness = abs(score - 0.5) * 2
+    return round(min(0.86, 0.5 + 0.3 * decisiveness), 2)
 
 
 def _ordered_evidence_concepts(concept_scores: dict[str, list[float]]) -> list[str]:
-    preferred = [
-        "rag_fundamentals",
-        "retrieval",
-        "retrieval_evaluation",
-        "chunking",
-        "embeddings",
-        "vector_search",
-        "production_rag_failures",
-        "hallucination_reduction",
-        "api_basics",
-        "python_basics",
-        "machine_learning_basics",
-    ]
-    return [
-        *[concept for concept in preferred if concept in concept_scores],
-        *sorted(concept for concept in concept_scores if concept not in preferred),
-    ]
+    return list(concept_scores)
 
 
 def _safe_concepts(values: Iterable[str]) -> list[str]:
@@ -385,13 +304,3 @@ def _unique(values: Iterable[str]) -> list[str]:
         if value not in unique_values:
             unique_values.append(value)
     return unique_values
-
-
-def _optional_str(value: object) -> str | None:
-    return value if isinstance(value, str) else None
-
-
-def _optional_str_list(value: object) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, str)]
