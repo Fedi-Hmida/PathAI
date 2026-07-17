@@ -125,23 +125,6 @@ class WorkspaceGenerationService:
             [],
             critic_review_id=critic_review_id,
         )
-        # No adaptation event exists yet (depends on real user activity this
-        # service doesn't fabricate) - the evaluation agent already scores
-        # its absence honestly (0.0 on that metric). Evaluation wiring itself
-        # is out of scope for this phase, so it still isn't given the quiz
-        # attempt built below.
-        evaluation_report = self.evaluation_agent.evaluate(
-            goal,
-            session,
-            knowledge_map,
-            curriculum,
-            [],
-            critic_review,
-            None,
-            None,
-            evaluation_report_id=evaluation_report_id,
-        )
-
         existing_quizzes = self.quizzes.list_quizzes_by_goal_id(goal.goal_id)
         existing_attempts = self.quizzes.list_attempts_by_goal_id(goal.goal_id)
         quiz_id = existing_quizzes[0].quiz_id if existing_quizzes else _new_id("quiz")
@@ -155,6 +138,21 @@ class WorkspaceGenerationService:
             progress_state,
             quiz_id=quiz_id,
             quiz_attempt_id=quiz_attempt_id,
+        )
+
+        # No adaptation event exists yet (depends on real user activity this
+        # service doesn't fabricate) - the evaluation agent already scores
+        # its absence honestly (0.0 on that metric).
+        evaluation_report = self.evaluation_agent.evaluate(
+            goal,
+            session,
+            knowledge_map,
+            curriculum,
+            [],
+            critic_review,
+            quiz_attempt,
+            None,
+            evaluation_report_id=evaluation_report_id,
         )
         return GeneratedWorkspaceArtifacts(
             knowledge_map=knowledge_map,

@@ -153,6 +153,13 @@ def test_generate_after_completed_assessment_creates_fresh_real_content(
     evaluation_summary = dashboard_after["evaluation_summary"]
     assert evaluation_summary is not None
     assert 0.0 <= evaluation_summary["overall_score"] <= 1.0
+    # The evaluation report is now built after the quiz and given the real
+    # quiz attempt, so its own artifact_ids should reference it.
+    evaluation_report = client.get(
+        f"/api/v1/evaluations/{body['evaluation_report_id']}",
+        headers=_auth_header(token),
+    ).json()
+    assert evaluation_report["artifact_ids"]["quiz_attempt_id"] == body["quiz_attempt_id"]
     # Rebuild-37: quiz is now real too, derived from this workspace's own
     # curriculum (see test_quiz_behavior.py for the RAG-vocabulary-free unit
     # check on the quiz agent's own logic).
