@@ -7,7 +7,7 @@ from app.agents.deterministic.quiz import (
     LOW_SCORE_THRESHOLD,
     seeded_answers_for_questions,
 )
-from app.agents.services.common import create_or_get, validate_agent_output
+from app.agents.services.common import create_or_replace, validate_agent_output
 from app.fixtures import canonical_demo as demo
 from app.schemas.curriculum import CurriculumDTO, CurriculumTopicDTO
 from app.schemas.enums import DifficultyLevel, QuizAttemptStatus, QuizStatus
@@ -34,12 +34,15 @@ class QuizAgentService:
         goal: LearningGoalDTO,
         curriculum: CurriculumDTO,
         progress_state: ProgressStateDTO,
+        *,
+        quiz_id: str | None = None,
+        quiz_attempt_id: str | None = None,
     ) -> tuple[QuizDTO, QuizAttemptDTO]:
         topics = _curriculum_topics(curriculum)
         payload = QuizAgentInput(
             goal_text=goal.goal_text,
             curriculum_topics=topics,
-            target_concepts=progress_state.weak_concepts or demo.QUIZ.target_concept_ids,
+            target_concepts=progress_state.weak_concepts,
             difficulty=curriculum.weeks[0].topics[0].difficulty
             if curriculum.weeks and curriculum.weeks[0].topics
             else DifficultyLevel.INTERMEDIATE,
@@ -51,7 +54,7 @@ class QuizAgentService:
             payload=self.agent.build_quiz(payload),
         )
         quiz = QuizDTO(
-            quiz_id=demo.QUIZ_ID,
+            quiz_id=quiz_id or demo.QUIZ_ID,
             goal_id=goal.goal_id,
             curriculum_id=curriculum.curriculum_id,
             target_topic_ids=_target_topic_ids(topics, quiz_output.questions),
@@ -64,14 +67,13 @@ class QuizAgentService:
             created_at=demo.NOW,
             updated_at=demo.NOW,
         )
-        saved_quiz = create_or_get(
+        saved_quiz = create_or_replace(
             create=self.quizzes.create_quiz,
-            get=self.quizzes.get_quiz_by_id,
+            save=self.quizzes.save_quiz,
             record=quiz,
-            record_id=quiz.quiz_id,
         )
         attempt_template = QuizAttemptDTO(
-            quiz_attempt_id=demo.QUIZ_ATTEMPT_ID,
+            quiz_attempt_id=quiz_attempt_id or demo.QUIZ_ATTEMPT_ID,
             quiz_id=saved_quiz.quiz_id,
             goal_id=goal.goal_id,
             curriculum_id=curriculum.curriculum_id,
@@ -107,11 +109,10 @@ class QuizAgentService:
             },
             deep=True,
         )
-        saved_attempt = create_or_get(
+        saved_attempt = create_or_replace(
             create=self.quizzes.create_attempt,
-            get=self.quizzes.get_attempt_by_id,
+            save=self.quizzes.save_attempt,
             record=attempt,
-            record_id=attempt.quiz_attempt_id,
         )
         return saved_quiz, saved_attempt
 

@@ -1,7 +1,15 @@
 from __future__ import annotations
 
 from app.schemas.base import BaseSchema
-from app.schemas.ids import CriticReviewId, CurriculumId, EvaluationReportId, KnowledgeMapId, RunId
+from app.schemas.ids import (
+    AttemptId,
+    CriticReviewId,
+    CurriculumId,
+    EvaluationReportId,
+    KnowledgeMapId,
+    QuizId,
+    RunId,
+)
 
 
 class WorkspaceRef(BaseSchema):
@@ -12,9 +20,11 @@ class WorkspaceRef(BaseSchema):
 
 class WorkspaceGenerationResult(BaseSchema):
     """Pointer to the caller's freshly (re)generated knowledge map,
-    curriculum, critic review, and evaluation report."""
+    curriculum, critic review, evaluation report, and quiz + attempt."""
 
     knowledge_map_id: KnowledgeMapId
     curriculum_id: CurriculumId
     critic_review_id: CriticReviewId
     evaluation_report_id: EvaluationReportId
+    quiz_id: QuizId
+    quiz_attempt_id: AttemptId

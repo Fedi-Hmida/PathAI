@@ -97,7 +97,11 @@ class QuizAttemptDTO(TimestampedDTO, VersionedDTO):
 class QuizAgentInput(BaseSchema):
     goal_text: str = Field(min_length=5, max_length=500)
     curriculum_topics: list[CurriculumTopicDTO] = Field(min_length=1)
-    target_concepts: list[ConceptId] = Field(min_length=1, max_length=20)
+    # No min_length: a learner with no known weak concepts yet (fresh
+    # workspace, no progress history) legitimately has none to target - the
+    # deterministic agent's own concept-prioritization already falls back to
+    # the curriculum's own topic concepts when this is empty.
+    target_concepts: list[ConceptId] = Field(default_factory=list, max_length=20)
     difficulty: DifficultyLevel
     question_count: int = Field(ge=1, le=20)
 

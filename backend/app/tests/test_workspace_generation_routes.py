@@ -126,6 +126,8 @@ def test_generate_after_completed_assessment_creates_fresh_real_content(
     assert body["curriculum_id"] != "curriculum_demo_rag_v1"
     assert body["critic_review_id"] != "critic_demo_rag"
     assert body["evaluation_report_id"] != "eval_demo_rag"
+    assert body["quiz_id"] != "quiz_demo_rag"
+    assert body["quiz_attempt_id"] != "attempt_demo_rag_low_score"
 
     dashboard_after = client.get(
         f"/api/v1/dashboard/{run_id}",
@@ -140,6 +142,8 @@ def test_generate_after_completed_assessment_creates_fresh_real_content(
     assert artifact_ids["curriculum_id"] == body["curriculum_id"]
     assert artifact_ids["critic_review_id"] == body["critic_review_id"]
     assert artifact_ids["evaluation_report_id"] == body["evaluation_report_id"]
+    assert artifact_ids["quiz_id"] == body["quiz_id"]
+    assert artifact_ids["quiz_attempt_id"] == body["quiz_attempt_id"]
     # Step 2: critic + evaluation are now real, derived from this workspace's
     # own knowledge map/curriculum (see test_critic_behavior.py for the
     # RAG-vocabulary-free unit check on the critic's own logic).
@@ -149,8 +153,14 @@ def test_generate_after_completed_assessment_creates_fresh_real_content(
     evaluation_summary = dashboard_after["evaluation_summary"]
     assert evaluation_summary is not None
     assert 0.0 <= evaluation_summary["overall_score"] <= 1.0
-    # The remaining four tiles stay honestly empty - future phase.
-    assert dashboard_after["quiz_summary"] is None
+    # Rebuild-37: quiz is now real too, derived from this workspace's own
+    # curriculum (see test_quiz_behavior.py for the RAG-vocabulary-free unit
+    # check on the quiz agent's own logic).
+    quiz_summary = dashboard_after["quiz_summary"]
+    assert quiz_summary is not None
+    assert 0.0 <= quiz_summary["latest_score"] <= 1.0
+    assert isinstance(quiz_summary["weak_concepts"], list)
+    # The remaining three tiles stay honestly empty - future phase.
     assert dashboard_after["progress_summary"] is None
     assert dashboard_after["resources_summary"]["total_attached"] == 0
     assert dashboard_after["adaptation_summary"]["recent_events"] == []
@@ -168,6 +178,23 @@ def test_generate_is_callable_again_and_still_succeeds(auth_enabled_app: None) -
     assert first.status_code == 200
     assert second.status_code == 200
     assert first.json() == second.json()
+
+
+def test_regenerating_reuses_the_same_quiz_id_instead_of_duplicating(
+    auth_enabled_app: None,
+) -> None:
+    client = TestClient(create_app())
+    token = _register(client, "learner@example.com")
+    _create_workspace(client, token)
+    _complete_assessment(client, token)
+
+    first = client.post("/api/v1/me/workspace/generate", headers=_auth_header(token)).json()
+    second = client.post("/api/v1/me/workspace/generate", headers=_auth_header(token)).json()
+
+    # create_or_replace semantics: the same goal's quiz/attempt IDs are
+    # reused and overwritten in place on regeneration, never duplicated.
+    assert first["quiz_id"] == second["quiz_id"]
+    assert first["quiz_attempt_id"] == second["quiz_attempt_id"]
 
 
 def test_workspace_generate_route_is_hidden_when_auth_disabled(

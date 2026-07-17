@@ -8,8 +8,19 @@ from app.agents.services.quiz import QuizAgentService
 from app.api.v1.dependencies import ApiServiceContainer
 from app.api.v1.quiz import _to_learner_quiz
 from app.fixtures import canonical_demo as demo
-from app.schemas.curriculum import CurriculumDTO, CurriculumTopicDTO
-from app.schemas.enums import DifficultyLevel, QuestionType
+from app.schemas.curriculum import (
+    CurriculumDTO,
+    CurriculumTopicDTO,
+    CurriculumWeekDTO,
+)
+from app.schemas.enums import (
+    CurriculumStatus,
+    DifficultyLevel,
+    ProgressStatus,
+    QuestionType,
+    TopicProgressStatus,
+)
+from app.schemas.progress import ProgressStateDTO, TopicProgressDTO
 from app.schemas.quiz import (
     QuizAgentInput,
     QuizAgentOutput,
@@ -84,6 +95,52 @@ def test_learner_quiz_output_does_not_expose_answer_keys() -> None:
     assert payload["quiz_id"] == demo.QUIZ_ID
     assert "correct_answer" not in str(payload)
     assert "explanation" not in str(payload)
+
+
+def test_quiz_agent_service_never_falls_back_to_the_demo_target_concepts() -> None:
+    """A first-time learner with no progress yet (empty weak_concepts) must
+    get a quiz targeting their own curriculum's concepts, never the canonical
+    demo's fixed RAG concept list - the old service-layer fallback this
+    guards against."""
+    container = ApiServiceContainer()
+    service = QuizAgentService(MockQuizAgent(), container.quiz_service)
+    goal = container.goal_service.create(demo.LEARNING_GOAL.model_copy(
+        update={"goal_id": "goal_budgeting", "goal_text": "Learn personal budgeting"},
+    ))
+    curriculum = container.curriculum_service.create(_budgeting_curriculum())
+    progress = ProgressStateDTO(
+        progress_state_id="progress_budgeting",
+        goal_id=goal.goal_id,
+        curriculum_id=curriculum.curriculum_id,
+        status=ProgressStatus.NOT_STARTED,
+        overall_completion=0.0,
+        topic_progress=[
+            TopicProgressDTO(
+                topic_id="topic_budgeting_basics",
+                status=TopicProgressStatus.NOT_STARTED,
+                completion=0.0,
+            ),
+        ],
+        weak_concepts=[],
+        created_at=demo.NOW,
+        updated_at=demo.NOW,
+    )
+
+    quiz, _attempt = service.build(goal, curriculum, progress)
+
+    demo_concepts = set(demo.QUIZ.target_concept_ids)
+    assert set(quiz.target_concept_ids) & demo_concepts == set()
+    assert set(quiz.target_concept_ids) == {"budgeting_basics", "emergency_fund"}
+    for question in quiz.questions:
+        haystack = " ".join(
+            [
+                question.prompt,
+                question.correct_answer,
+                question.explanation or "",
+                *question.options,
+            ],
+        )
+        assert not _RAG_TOKEN_PATTERN.search(haystack), haystack
 
 
 def test_quiz_for_a_non_rag_goal_never_mentions_rag_vocabulary() -> None:
@@ -191,6 +248,31 @@ def _budgeting_topics() -> list[CurriculumTopicDTO]:
             sequence_order=2,
         ),
     ]
+
+
+def _budgeting_curriculum() -> CurriculumDTO:
+    return CurriculumDTO(
+        curriculum_id="curriculum_budgeting",
+        goal_id="goal_budgeting",
+        knowledge_map_id="kmap_budgeting",
+        run_id="run_budgeting",
+        status=CurriculumStatus.ACTIVE,
+        title="Personal Budgeting Fundamentals",
+        duration_weeks=1,
+        target_outcomes=["Build a monthly budget and an emergency fund."],
+        created_at=demo.NOW,
+        updated_at=demo.NOW,
+        weeks=[
+            CurriculumWeekDTO(
+                week_id="week_budgeting",
+                week_number=1,
+                theme="Budgeting foundations",
+                estimated_hours=3.5,
+                learning_outcomes=["Build a first monthly budget and emergency fund plan."],
+                topics=_budgeting_topics(),
+            ),
+        ],
+    )
 
 
 def _attempt_with_answers(answers: list[QuizAnswerSubmission]) -> QuizAttemptDTO:

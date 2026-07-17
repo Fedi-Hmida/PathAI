@@ -7,19 +7,25 @@ from app.agents.services.critic import CriticAgentService
 from app.agents.services.curriculum import CurriculumAgentService
 from app.agents.services.evaluation import EvaluationAgentService
 from app.agents.services.knowledge_map import KnowledgeMapAgentService
+from app.agents.services.quiz import QuizAgentService
+from app.fixtures import canonical_demo as demo
 from app.schemas.assessment import AssessmentSessionDTO
 from app.schemas.critic import CriticReviewDTO
 from app.schemas.curriculum import CurriculumDTO
-from app.schemas.enums import AssessmentStatus
+from app.schemas.enums import AssessmentStatus, ProgressStatus, TopicProgressStatus
 from app.schemas.evaluation import EvaluationReportDTO
 from app.schemas.goal import LearningGoalDTO
 from app.schemas.knowledge_map import KnowledgeMapDTO
+from app.schemas.progress import ProgressStateDTO, TopicProgressDTO
+from app.schemas.quiz import QuizAttemptDTO, QuizDTO
 from app.services import (
     AssessmentService,
     CriticService,
     CurriculumService,
     EvaluationService,
     KnowledgeMapService,
+    ProgressService,
+    QuizService,
 )
 
 
@@ -38,33 +44,42 @@ class GeneratedWorkspaceArtifacts:
     curriculum: CurriculumDTO
     critic_review: CriticReviewDTO
     evaluation_report: EvaluationReportDTO
+    quiz: QuizDTO
+    quiz_attempt: QuizAttemptDTO
 
 
 @dataclass(slots=True)
 class WorkspaceGenerationService:
-    """Builds a single user's knowledge map, curriculum, critic review, and
-    evaluation report from their own completed live assessment. A fresh
-    workspace seeds none of them (`app/fixtures/workspace_factory.py`), so
-    the first call here mints fresh IDs and creates them; repeat calls find
-    the goal's existing artifacts and regenerate them in place. Quiz,
-    resources, progress, and adaptation are deliberately NOT generated here -
-    they depend on real user activity (a taken quiz, attached resources) or
-    are still backed by a RAG-hardcoded agent (quiz's fixed question bank);
-    they stay honestly absent until their own future phase. This is the
-    per-user counterpart to the orchestration graph's
-    `load_knowledge_map`/`load_curriculum`/`load_critic_review`/
-    `load_evaluation` nodes, which only ever run against the fixed canonical
-    demo goal (`app/orchestration/runner.py`)."""
+    """Builds a single user's knowledge map, curriculum, critic review,
+    evaluation report, and quiz (+ scored attempt) from their own completed
+    live assessment. A fresh workspace seeds none of them
+    (`app/fixtures/workspace_factory.py`), so the first call here mints fresh
+    IDs and creates them; repeat calls find the goal's existing artifacts and
+    regenerate them in place. The quiz agent needs a `ProgressStateDTO`; if
+    the goal has no real progress yet, `generate()` builds a minimal,
+    in-memory, NOT-persisted seed (empty `weak_concepts`, one `NOT_STARTED`
+    entry for the curriculum's first topic) purely to satisfy that signature
+    - this is not the start of a real progress-tracking feature. Resources
+    and adaptation are deliberately NOT generated here - resources are still
+    backed by an empty RAG corpus (Rebuild-16) and adaptation depends on real
+    user activity this service doesn't fabricate; they stay honestly absent
+    until their own future phase. This is the per-user counterpart to the
+    orchestration graph's `load_knowledge_map`/`load_curriculum`/
+    `load_critic_review`/`load_evaluation` nodes, which only ever run against
+    the fixed canonical demo goal (`app/orchestration/runner.py`)."""
 
     knowledge_map_agent: KnowledgeMapAgentService
     curriculum_agent: CurriculumAgentService
     critic_agent: CriticAgentService
     evaluation_agent: EvaluationAgentService
+    quiz_agent: QuizAgentService
     assessments: AssessmentService
     knowledge_maps: KnowledgeMapService
     curricula: CurriculumService
     critics: CriticService
     evaluations: EvaluationService
+    quizzes: QuizService
+    progress: ProgressService
 
     def generate(self, goal: LearningGoalDTO) -> GeneratedWorkspaceArtifacts:
         session = self._latest_completed_session(goal)
@@ -110,9 +125,11 @@ class WorkspaceGenerationService:
             [],
             critic_review_id=critic_review_id,
         )
-        # No quiz attempt or adaptation event exists yet (both depend on real
-        # user activity this service doesn't fabricate) - the evaluation
-        # agent already scores their absence honestly (0.0 on those metrics).
+        # No adaptation event exists yet (depends on real user activity this
+        # service doesn't fabricate) - the evaluation agent already scores
+        # its absence honestly (0.0 on that metric). Evaluation wiring itself
+        # is out of scope for this phase, so it still isn't given the quiz
+        # attempt built below.
         evaluation_report = self.evaluation_agent.evaluate(
             goal,
             session,
@@ -124,11 +141,55 @@ class WorkspaceGenerationService:
             None,
             evaluation_report_id=evaluation_report_id,
         )
+
+        existing_quizzes = self.quizzes.list_quizzes_by_goal_id(goal.goal_id)
+        existing_attempts = self.quizzes.list_attempts_by_goal_id(goal.goal_id)
+        quiz_id = existing_quizzes[0].quiz_id if existing_quizzes else _new_id("quiz")
+        quiz_attempt_id = (
+            existing_attempts[0].quiz_attempt_id if existing_attempts else _new_id("attempt")
+        )
+        progress_state = self._progress_state_for_quiz(goal, curriculum)
+        quiz, quiz_attempt = self.quiz_agent.build(
+            goal,
+            curriculum,
+            progress_state,
+            quiz_id=quiz_id,
+            quiz_attempt_id=quiz_attempt_id,
+        )
         return GeneratedWorkspaceArtifacts(
             knowledge_map=knowledge_map,
             curriculum=curriculum,
             critic_review=critic_review,
             evaluation_report=evaluation_report,
+            quiz=quiz,
+            quiz_attempt=quiz_attempt,
+        )
+
+    def _progress_state_for_quiz(
+        self,
+        goal: LearningGoalDTO,
+        curriculum: CurriculumDTO,
+    ) -> ProgressStateDTO:
+        existing = self.progress.list_by_goal_id(goal.goal_id)
+        if existing:
+            return existing[-1]
+        first_topic = curriculum.weeks[0].topics[0]
+        return ProgressStateDTO(
+            progress_state_id=_new_id("progress"),
+            goal_id=goal.goal_id,
+            curriculum_id=curriculum.curriculum_id,
+            status=ProgressStatus.NOT_STARTED,
+            overall_completion=0.0,
+            topic_progress=[
+                TopicProgressDTO(
+                    topic_id=first_topic.topic_id,
+                    status=TopicProgressStatus.NOT_STARTED,
+                    completion=0.0,
+                ),
+            ],
+            weak_concepts=[],
+            created_at=demo.NOW,
+            updated_at=demo.NOW,
         )
 
     def _latest_completed_session(self, goal: LearningGoalDTO) -> AssessmentSessionDTO:
