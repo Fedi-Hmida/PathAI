@@ -1,3 +1,4 @@
+import type { DifficultyLevel } from "@/lib/types/curriculum";
 import type { GoalStatus } from "@/lib/types/dashboard";
 
 export type LearnerProfile = {
@@ -7,7 +8,7 @@ export type LearnerProfile = {
   time_availability_hours_per_week: number;
   desired_outcome: string;
   preferred_resource_types: string[];
-  difficulty_target: string;
+  difficulty_target: DifficultyLevel;
 };
 
 export type LearningGoalDTO = {
