@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.repositories.errors import NotFoundError
 from app.repositories.protocols.quiz import QuizRepository
 from app.schemas.enums import QuizAttemptStatus, QuizStatus
 from app.schemas.ids import AttemptId, CurriculumId, GoalId, QuizId
@@ -38,6 +39,19 @@ class QuizService:
 
     def get_attempt_by_id(self, quiz_attempt_id: AttemptId) -> QuizAttemptDTO:
         return self.repository.get_attempt_by_id(quiz_attempt_id)
+
+    def get_attempt_for_quiz(self, quiz_id: QuizId, quiz_attempt_id: AttemptId) -> QuizAttemptDTO:
+        """Fetch an attempt, scoped to the quiz it's supposed to belong to.
+
+        Mirrors ``AuthorizationService``'s "don't leak which part failed"
+        pattern: an attempt ID that's real but under the wrong quiz ID 404s
+        the same as an attempt that doesn't exist at all, rather than
+        revealing that the attempt exists elsewhere.
+        """
+        attempt = self.repository.get_attempt_by_id(quiz_attempt_id)
+        if attempt.quiz_id != quiz_id:
+            raise NotFoundError(f"quiz attempt not accessible: {quiz_attempt_id}")
+        return attempt
 
     def list_attempts_by_quiz_id(self, quiz_id: QuizId) -> list[QuizAttemptDTO]:
         return self.repository.list_attempts_by_quiz_id(quiz_id)

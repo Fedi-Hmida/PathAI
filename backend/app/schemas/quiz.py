@@ -94,6 +94,25 @@ class QuizAttemptDTO(TimestampedDTO, VersionedDTO):
     adaptation_triggered: bool = False
 
 
+class QuizAttemptReviewDTO(BaseSchema):
+    """The graded-attempt "receipt" view: an attempt joined with its quiz's
+    questions.
+
+    ``questions`` carries the answer key (``correct_answer``/``rubric``/
+    ``explanation``) only once the attempt is ``SCORED``. For any other
+    status the questions are stripped to the same learner-safe shape
+    ``GET /quizzes/{id}`` already returns (no answers), so the answer key is
+    never exposed for an attempt that hasn't been graded yet. The field type
+    reflects that: a plain ``list[QuizQuestionDTO]`` can't structurally omit
+    the (required) answer-key fields the way ``LearnerQuizQuestionDTO``
+    already does, so this stays a union of the two existing question shapes
+    rather than inventing a third.
+    """
+
+    attempt: QuizAttemptDTO
+    questions: list[QuizQuestionDTO] | list[LearnerQuizQuestionDTO]
+
+
 class QuizAgentInput(BaseSchema):
     goal_text: str = Field(min_length=5, max_length=500)
     curriculum_topics: list[CurriculumTopicDTO] = Field(min_length=1)

@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
+
+import pytest
+from fastapi.testclient import TestClient
 
 from app.agents.deterministic.quiz import score_quiz_attempt
 from app.agents.mock import MockQuizAgent
 from app.agents.services.quiz import QuizAgentService
-from app.api.v1.dependencies import ApiServiceContainer
-from app.api.v1.quiz import _to_learner_quiz
+from app.api.v1.dependencies import ApiServiceContainer, reset_api_container_for_tests
+from app.api.v1.quiz import _to_learner_quiz, get_quiz_attempt_review
+from app.core.settings import get_settings
 from app.fixtures import canonical_demo as demo
+from app.main import create_app
+from app.repositories.errors import NotFoundError
 from app.schemas.curriculum import (
     CurriculumDTO,
     CurriculumTopicDTO,
@@ -18,10 +25,12 @@ from app.schemas.enums import (
     DifficultyLevel,
     ProgressStatus,
     QuestionType,
+    QuizAttemptStatus,
     TopicProgressStatus,
 )
 from app.schemas.progress import ProgressStateDTO, TopicProgressDTO
 from app.schemas.quiz import (
+    LearnerQuizQuestionDTO,
     QuizAgentInput,
     QuizAgentOutput,
     QuizAnswerSubmission,
@@ -29,6 +38,7 @@ from app.schemas.quiz import (
     QuizDTO,
     QuizScoreOutput,
 )
+from app.services.authorization import AuthorizationService
 
 _RAG_TOKEN_PATTERN = re.compile(
     r"\b(rag|retrieval|reranking|chunking|embeddings?|vector[_ ]search|hallucination)\b",
@@ -95,6 +105,187 @@ def test_learner_quiz_output_does_not_expose_answer_keys() -> None:
     assert payload["quiz_id"] == demo.QUIZ_ID
     assert "correct_answer" not in str(payload)
     assert "explanation" not in str(payload)
+
+
+def test_get_attempt_for_quiz_returns_the_attempt_when_ids_match() -> None:
+    container = ApiServiceContainer()
+    agent_service = QuizAgentService(MockQuizAgent(), container.quiz_service)
+    goal = container.goal_service.create(demo.LEARNING_GOAL)
+    curriculum = container.curriculum_service.create(demo.CURRICULUM)
+    progress = container.progress_service.create(demo.PROGRESS_STATE)
+    _quiz, attempt = agent_service.build(goal, curriculum, progress)
+
+    fetched = container.quiz_service.get_attempt_for_quiz(attempt.quiz_id, attempt.quiz_attempt_id)
+
+    assert fetched == attempt
+
+
+def test_get_attempt_for_quiz_404s_when_attempt_belongs_to_a_different_quiz() -> None:
+    """A real attempt ID under the wrong quiz ID must 404 like a missing
+    attempt, not reveal that it exists elsewhere - the same "don't leak
+    which part failed" property `AuthorizationService` already enforces."""
+    container = ApiServiceContainer()
+    agent_service = QuizAgentService(MockQuizAgent(), container.quiz_service)
+    goal = container.goal_service.create(demo.LEARNING_GOAL)
+    curriculum = container.curriculum_service.create(demo.CURRICULUM)
+    progress = container.progress_service.create(demo.PROGRESS_STATE)
+    _quiz_a, attempt_a = agent_service.build(goal, curriculum, progress)
+    quiz_b, _attempt_b = agent_service.build(
+        goal,
+        curriculum,
+        progress,
+        quiz_id="quiz_other_review_test",
+        quiz_attempt_id="attempt_other_review_test",
+    )
+
+    with pytest.raises(NotFoundError):
+        container.quiz_service.get_attempt_for_quiz(quiz_b.quiz_id, attempt_a.quiz_attempt_id)
+
+
+def test_quiz_attempt_review_strips_answer_key_until_the_attempt_is_scored() -> None:
+    """The schema allows a non-SCORED attempt (the deferred Quiz Taking
+    flow); today's `generate()` pipeline always produces a SCORED attempt,
+    so this branch can't be exercised live - exercise it directly instead."""
+    container = ApiServiceContainer()
+    agent_service = QuizAgentService(MockQuizAgent(), container.quiz_service)
+    goal = container.goal_service.create(demo.LEARNING_GOAL)
+    curriculum = container.curriculum_service.create(demo.CURRICULUM)
+    progress = container.progress_service.create(demo.PROGRESS_STATE)
+    quiz, attempt = agent_service.build(goal, curriculum, progress)
+    submitted_attempt = container.quiz_service.save_attempt(
+        attempt.model_copy(update={"status": QuizAttemptStatus.SUBMITTED}),
+    )
+    authz = AuthorizationService(container.goal_repository)
+
+    review = get_quiz_attempt_review(
+        quiz.quiz_id,
+        submitted_attempt.quiz_attempt_id,
+        container.quiz_service,
+        None,
+        authz,
+    )
+
+    assert review.attempt.status == QuizAttemptStatus.SUBMITTED
+    assert all(isinstance(question, LearnerQuizQuestionDTO) for question in review.questions)
+    payload = str([question.model_dump() for question in review.questions])
+    assert "correct_answer" not in payload
+    assert "explanation" not in payload
+
+
+def test_quiz_attempt_review_route_returns_full_answer_keyed_data_for_a_scored_attempt() -> None:
+    client = _client()
+    _load_demo(client)
+
+    response = client.get(f"/api/v1/quizzes/{demo.QUIZ_ID}/attempts/{demo.QUIZ_ATTEMPT_ID}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["attempt"]["quiz_attempt_id"] == demo.QUIZ_ATTEMPT_ID
+    assert body["attempt"]["status"] == "scored"
+    assert body["questions"][0]["correct_answer"]
+    assert "explanation" in body["questions"][0]
+
+
+def test_quiz_attempt_review_route_404s_on_quiz_attempt_mismatch() -> None:
+    client = _client()
+    _load_demo(client)
+
+    response = client.get(
+        f"/api/v1/quizzes/quiz_not_the_real_owner/attempts/{demo.QUIZ_ATTEMPT_ID}"
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.fixture
+def _auth_enabled_app(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    monkeypatch.setenv("PATHAI_ENABLE_AUTH", "true")
+    monkeypatch.setenv("JWT_SECRET_KEY", "quiz-attempt-review-test-secret-0123456789")
+    monkeypatch.setenv("REFRESH_COOKIE_SECURE", "false")
+    get_settings.cache_clear()
+    reset_api_container_for_tests()
+    yield
+    get_settings.cache_clear()
+
+
+def test_quiz_attempt_review_route_denies_a_different_owners_attempt_with_404(
+    _auth_enabled_app: None,
+) -> None:
+    client = TestClient(create_app())
+    owner_token = _register(client, "quiz-review-owner@example.com")
+    _create_workspace(client, owner_token)
+    _complete_assessment(client, owner_token)
+    generated = client.post(
+        "/api/v1/me/workspace/generate", headers=_auth_header(owner_token)
+    ).json()
+    quiz_id = generated["quiz_id"]
+    attempt_id = generated["quiz_attempt_id"]
+
+    owner_response = client.get(
+        f"/api/v1/quizzes/{quiz_id}/attempts/{attempt_id}",
+        headers=_auth_header(owner_token),
+    )
+    assert owner_response.status_code == 200
+    assert owner_response.json()["questions"][0]["correct_answer"]
+
+    other_token = _register(client, "quiz-review-other@example.com")
+
+    other_response = client.get(
+        f"/api/v1/quizzes/{quiz_id}/attempts/{attempt_id}",
+        headers=_auth_header(other_token),
+    )
+
+    # Denied with the same 404 a truly-missing attempt would return - never
+    # a 403, and never a 200 leaking the owner's answer-keyed data.
+    assert other_response.status_code == 404
+    assert other_response.json() != owner_response.json()
+
+
+def _client() -> TestClient:
+    reset_api_container_for_tests()
+    return TestClient(create_app())
+
+
+def _load_demo(client: TestClient) -> None:
+    response = client.post("/api/v1/demo/load-fixtures")
+    assert response.status_code == 200
+
+
+def _register(client: TestClient, email: str) -> str:
+    response = client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "password": "correcthorsebattery"},
+    )
+    assert response.status_code == 201
+    return response.json()["access_token"]  # type: ignore[no-any-return]
+
+
+def _auth_header(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _create_workspace(client: TestClient, token: str) -> None:
+    response = client.post(
+        "/api/v1/me/workspace",
+        headers=_auth_header(token),
+        json={"goal_text": "Learn classical guitar for a wedding performance"},
+    )
+    assert response.status_code == 201
+
+
+def _complete_assessment(client: TestClient, token: str) -> None:
+    start = client.post("/api/v1/me/assessment/start", headers=_auth_header(token))
+    assessment_id = start.json()["assessment_session_id"]
+    question_id = start.json()["current_question"]["question_id"]
+    for _ in range(5):
+        response = client.post(
+            f"/api/v1/me/assessment/{assessment_id}/answer",
+            headers=_auth_header(token),
+            json={"question_id": question_id, "selected_options": [], "self_rating": 3},
+        )
+        next_question = response.json()["session"]["current_question"]
+        if next_question is not None:
+            question_id = next_question["question_id"]
 
 
 def test_quiz_agent_service_never_falls_back_to_the_demo_target_concepts() -> None:
