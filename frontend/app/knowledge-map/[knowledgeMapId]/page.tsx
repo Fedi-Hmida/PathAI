@@ -9,13 +9,12 @@ import { RequireAuth } from "@/components/auth/require-auth";
 import { ConceptDetailPanel } from "@/components/knowledge-map/concept-detail-panel";
 import { ConceptGraph } from "@/components/knowledge-map/concept-graph";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusPill } from "@/components/ui/status-pill";
 import { ApiError } from "@/lib/api/client";
 import { getGoal } from "@/lib/api/goal";
 import { getKnowledgeMap } from "@/lib/api/knowledge-map";
-import { cn } from "@/lib/utils";
 import type { KnowledgeMapDTO, KnowledgeMapStatus } from "@/lib/types/knowledge-map";
 
 type KnowledgeMapLoadState =
@@ -26,11 +25,14 @@ type KnowledgeMapLoadState =
   | { kind: "ready"; knowledgeMap: KnowledgeMapDTO }
   | { kind: "error"; message: string };
 
-const STATUS_CONFIG: Record<KnowledgeMapStatus, { label: string; className: string }> = {
-  draft: { label: "Draft", className: "bg-surface-sunken text-tertiary" },
-  active: { label: "Active", className: "bg-success-tint text-success" },
-  superseded: { label: "Superseded", className: "bg-surface-sunken text-tertiary" },
-  failed: { label: "Failed", className: "bg-danger-tint text-danger" },
+const STATUS_CONFIG: Record<
+  KnowledgeMapStatus,
+  { label: string; tone: "neutral" | "success" | "danger" }
+> = {
+  draft: { label: "Draft", tone: "neutral" },
+  active: { label: "Active", tone: "success" },
+  superseded: { label: "Superseded", tone: "neutral" },
+  failed: { label: "Failed", tone: "danger" },
 };
 
 export default function KnowledgeMapPage() {
@@ -217,9 +219,7 @@ function KnowledgeMapView() {
           <span className="text-tertiary font-mono text-[13px]">
             {Math.round(knowledgeMap.confidence * 100)}% confidence
           </span>
-          <Badge className={cn("rounded-full px-3 py-1.5 text-sm", status.className)}>
-            {status.label}
-          </Badge>
+          <StatusPill tone={status.tone}>{status.label}</StatusPill>
         </div>
       </div>
 

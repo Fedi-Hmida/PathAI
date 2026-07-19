@@ -6,7 +6,9 @@ export type ResourceType =
   | "paper"
   | "article"
   | "video"
-  | "code_example";
+  | "code_example"
+  | "exercise"
+  | "checklist";
 
 export type ResourceStatus = "active" | "deprecated" | "needs_review";
 

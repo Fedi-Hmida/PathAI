@@ -16,6 +16,12 @@
  * color; `--accent` keeps shadcn's neutral-hover semantics; the indigo
  * tint/border pairing the "Next action" card and focus rings need is
  * exposed separately as `--brand-*`.
+ *
+ * Token decision (2026-07-19): these values are the single source of truth.
+ * The `UI_UX/` design-tool exports carry their own inline overrides
+ * (`#4F46E5` accent, `#F7F6FB` surface, Fraunces + Public Sans fonts) that
+ * diverge from this file; those are design-tool drift and are deliberately
+ * not adopted — this file already matches the exports' own DS token files.
  */
 :root {
   --radius-pill: 999px;
