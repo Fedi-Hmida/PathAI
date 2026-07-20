@@ -2,7 +2,7 @@
 
 **Purpose:** a single up-to-date reference for what's done, what's in flight, and what's
 genuinely missing — written for picking this project back up in a fresh chat session with no
-prior context. Last updated: 2026-07-17, after Rebuild-37.
+prior context. Last updated: 2026-07-20, after `ui_ux_implementation_plan.md` Steps 1–9.
 
 Source of truth for anything below: read the actual code before trusting this doc — it decays.
 The canonical audit this tracks is `reports/audits/2026-07-13_end_to_end_provenance_audit.md`
@@ -84,31 +84,38 @@ future doc-maintenance pass). Confirmed working end-to-end:
 - Knowledge-map detail page `/knowledge-map/[id]` — full concept graph.
 - Curriculum detail page `/curriculum/[id]` — weeks/topics, embeds per-topic resources.
 - Orchestration run status page `/orchestration/[runId]`.
+- Goal detail `/goal/[goalId]`, Critic Review detail `/critic/[criticReviewId]`, Quiz Results
+  `/quiz/[quizId]/attempts/[attemptId]`, Resources Browser `/resources/[curriculumId]`, Progress
+  Tracking `/progress/[progressId]`, and Adaptation Detail `/adaptation/[adaptationId]` — all six
+  built and wired into the live sidebar (`app-shell.tsx`) per
+  `docs/roadmap/ui_ux_implementation_plan.md` Steps 2–9; see §5 for what's still open.
 
 ## 5. Frontend — missing (= audit finding B10, P5 scope)
 
-This is a **named, pre-existing audit finding**, not a new discovery: `reports/audits/...md` B10 —
-"8 sidebar items are dead placeholders... Data exists (as demo-clone) but no screen to view/verify
-it," remediation scoped as **P5 — Wire or retire the 8 'Coming soon' screens**
-(`app-shell.tsx:38-47`, `COMING_SOON_LINKS`).
+This was a **named, pre-existing audit finding**: `reports/audits/...md` B10 — "8 sidebar items are
+dead placeholders... Data exists (as demo-clone) but no screen to view/verify it," remediation
+scoped as **P5 — Wire or retire the 8 'Coming soon' screens** (`app-shell.tsx`, `COMING_SOON_LINKS`).
 
-Confirmed still true this session — **no page and no `lib/api/*.ts` client exist at all** for:
+**Closed for 6 of the 8** (`docs/roadmap/ui_ux_implementation_plan.md` Steps 1–9): Goal, Critic
+Review, Quiz Results, Resources Browser, Progress Tracking, and Adaptation Detail all now have real
+pages and a real `lib/api/*.ts` client, wired into the live sidebar with each link resolving its ID
+from `artifact_ids` and rendering an honestly-disabled placeholder when the ID is absent (same
+pattern the pre-existing Knowledge Map/Assessment/Curriculum links already used). Progress and
+Adaptation's *pages* are done, but their real backing data still doesn't exist for a real per-user
+run — see §3 ("Progress is not persisted per-user" / "Adaptation is not generated at all") for why
+— so their sidebar links stay disabled today. That's the correct, expected state, not a bug: once
+their own backend phases land, the same links activate automatically with no frontend rework.
+
+**Still open — 2 of the 8:**
 
 | Screen | API client | Backing data today |
 |---|---|---|
-| Quiz detail | none (`lib/api/quiz.ts` missing) | **real** since Rebuild-37 — just has no page to show it |
-| Critic review detail | none (`lib/api/critic.ts` missing) | **real** since Rebuild-33 — just has no page to show it |
-| Evaluation report detail | none (`lib/api/evaluation.ts` missing) | **real** since Rebuild-33 — same gap |
-| Adaptation history | none (`lib/api/adaptation.ts` missing) | none (adaptation isn't generated at all, see §3) |
-| Resources (standalone) | `resource.ts` exists but is only used inside the curriculum page | none per-user yet (see §3) |
-| Progress (standalone) | `progress.ts` exists but only feeds the dashboard ring/next-action card | none persisted yet (see §3) |
-| Goal (standalone) | none | goal exists, just no dedicated screen beyond `/workspace` |
-| Agents | none | **no backend support at all** — P5's own scope says "remove/disable-with-honest-reason," not build |
+| Evaluation report detail | none (`lib/api/evaluation.ts` missing) | **real** since Rebuild-33 — just has no page (no design exists in the `UI_UX/` bundle for it either, per Steps 1–9's OQ1) |
+| Agents | none | **no backend support at all** — stays an honestly-disabled "Coming soon" placeholder, per P5's own scope ("remove/disable-with-honest-reason," not build) |
 
-Per the original P5 scope: build real pages for the ones with real endpoints (Goal, Progress,
-Resources, Quiz, Critic, Evaluation), remove or honestly disable Agents (no backend exists for it).
-Quiz, Critic, and Evaluation detail pages can now all be built any time — their backing data is
-real as of Rebuild-33/37; none is blocked on further backend work.
+Evaluation can be built any time — its backing data has been real since Rebuild-33, so it's not
+blocked on further backend work, only on a design (or a from-scratch build per OQ1's option (b): a
+Critic-radar-style page deriving from `EvaluationMetricScores`'s 9 metrics).
 
 ## 6. Known repo housekeeping to be aware of
 
@@ -126,7 +133,11 @@ real as of Rebuild-33/37; none is blocked on further backend work.
 
 ## 7. Suggested next-phase order
 
-1. **Quiz + Critic + Evaluation detail pages** (P5, partial) — data's already real for all three,
-   purely additive frontend work, no backend dependency.
-2. **Adaptation/Resources/Progress/Goal pages + Agents retirement** (rest of P5) — resources/progress/adaptation pages will show honest "not yet generated" states until their own backend phases (§3) land; that's an acceptable interim per P5's own acceptance criteria ("no dead placeholder shows *fabricated* data" — an honest empty state is fine, silence via missing route is not).
-3. Backend §3 items (resources/progress/adaptation generation, B9, P6, P7) as their own future phases — bigger lifts, lower urgency than the above.
+1. ~~Quiz + Critic + Evaluation detail pages~~ — Quiz and Critic shipped (Steps 4–5, 3 of
+   `ui_ux_implementation_plan.md`); Evaluation still open, see §5.
+2. ~~Adaptation/Resources/Progress/Goal pages + Agents retirement~~ — Goal/Resources/Progress/
+   Adaptation shipped (Steps 2, 6–8); Agents stays an honestly-disabled placeholder per P5's scope.
+3. **Evaluation report detail page** (rest of P5) — data's already real (Rebuild-33); no design
+   exists yet, see §5 for the build-without-design option.
+4. Backend §3 items (resources/progress/adaptation generation, B9, P6, P7) as their own future
+   phases — bigger lifts, lower urgency than the above.

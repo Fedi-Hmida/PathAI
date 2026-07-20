@@ -36,12 +36,6 @@ import { cn } from "@/lib/utils";
 // planned position is visible, per product decision — not a RULES.md
 // requirement.
 const COMING_SOON_LINKS: { label: string; icon: LucideIcon }[] = [
-  { label: "Goal", icon: Target },
-  { label: "Progress", icon: TrendingUp },
-  { label: "Resources", icon: Link2 },
-  { label: "Quiz", icon: HelpCircle },
-  { label: "Adaptation", icon: RefreshCw },
-  { label: "Critic Review", icon: ShieldAlert },
   { label: "Evaluation", icon: CheckCircle2 },
   { label: "Agents", icon: Bot },
 ];
@@ -189,6 +183,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const knowledgeMapId = artifactIds?.knowledge_map_id;
   const assessmentId = artifactIds?.assessment_id;
   const curriculumId = artifactIds?.curriculum_id;
+  const goalId = artifactIds?.goal_id;
+  const criticReviewId = artifactIds?.critic_review_id;
+  const quizId = artifactIds?.quiz_id;
+  const quizAttemptId = artifactIds?.quiz_attempt_id;
+  const progressStateId = artifactIds?.progress_state_id;
+  const adaptationEventId = artifactIds?.adaptation_event_id;
 
   if (status === "loading") {
     return <SplashScreen />;
@@ -239,6 +239,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               reason="Create a workspace to get started"
             />
           )}
+          {goalId ? (
+            <SidebarLink
+              href={`/goal/${goalId}`}
+              icon={Target}
+              label="Goal"
+              active={section === "goal"}
+              open={open}
+            />
+          ) : (
+            <SidebarLinkDisabled icon={Target} label="Goal" open={open} reason="Not available yet" />
+          )}
           {knowledgeMapId ? (
             <SidebarLink
               href={`/knowledge-map/${knowledgeMapId}`}
@@ -287,6 +298,44 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               reason="Not available yet"
             />
           )}
+          {curriculumId ? (
+            <SidebarLink
+              href={`/resources/${curriculumId}`}
+              icon={Link2}
+              label="Resources"
+              active={section === "resources"}
+              open={open}
+            />
+          ) : (
+            <SidebarLinkDisabled icon={Link2} label="Resources" open={open} reason="Not available yet" />
+          )}
+          {quizId && quizAttemptId ? (
+            <SidebarLink
+              href={`/quiz/${quizId}/attempts/${quizAttemptId}`}
+              icon={HelpCircle}
+              label="Quiz"
+              active={section === "quiz"}
+              open={open}
+            />
+          ) : (
+            <SidebarLinkDisabled icon={HelpCircle} label="Quiz" open={open} reason="Not available yet" />
+          )}
+          {criticReviewId ? (
+            <SidebarLink
+              href={`/critic/${criticReviewId}`}
+              icon={ShieldAlert}
+              label="Critic Review"
+              active={section === "critic"}
+              open={open}
+            />
+          ) : (
+            <SidebarLinkDisabled
+              icon={ShieldAlert}
+              label="Critic Review"
+              open={open}
+              reason="Not available yet"
+            />
+          )}
           {runId ? (
             <SidebarLink
               href={`/orchestration/${runId}`}
@@ -301,6 +350,39 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               label="Orchestration"
               open={open}
               reason="Create a workspace to get started"
+            />
+          )}
+
+          {progressStateId ? (
+            <SidebarLink
+              href={`/progress/${progressStateId}`}
+              icon={TrendingUp}
+              label="Progress"
+              active={section === "progress"}
+              open={open}
+            />
+          ) : (
+            <SidebarLinkDisabled
+              icon={TrendingUp}
+              label="Progress"
+              open={open}
+              reason="No progress tracked yet"
+            />
+          )}
+          {adaptationEventId ? (
+            <SidebarLink
+              href={`/adaptation/${adaptationEventId}`}
+              icon={RefreshCw}
+              label="Adaptation"
+              active={section === "adaptation"}
+              open={open}
+            />
+          ) : (
+            <SidebarLinkDisabled
+              icon={RefreshCw}
+              label="Adaptation"
+              open={open}
+              reason="No plan adjustments yet"
             />
           )}
 
