@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.agents.contracts import AssessorAgent, CriticAgent, CurriculumAgent, KnowledgeMapAgent
+from app.agents.contracts import (
+    AssessorAgent,
+    CriticAgent,
+    CurriculumAgent,
+    KnowledgeMapAgent,
+    RunBudgetSummaryProvider,
+)
 from app.agents.llm.assessment import LLMAssessmentAgent
 from app.agents.llm.client_selection import build_llm_client_for_agent
 from app.agents.llm.critic import LLMCriticAgent
@@ -10,6 +16,7 @@ from app.agents.llm.curriculum import LLMCurriculumAgent
 from app.agents.llm.knowledge_map import LLMKnowledgeMapAgent
 from app.agents.llm.observer_selection import build_run_scoped_observer
 from app.agents.llm.retry_policy_selection import resolve_retry_policy
+from app.agents.llm.run_budget_selection import resolve_run_budget
 from app.agents.llm.timeout_policy_selection import resolve_timeout_policy
 from app.agents.mock import (
     MockAssessorAgent,
@@ -33,12 +40,19 @@ class InjectedAgents:
 
     A `None` field means "no override" — the bundle keeps using its own
     default deterministic mock agent for that role.
+
+    `observer` is the run-scoped budget summary source shared by every
+    non-`None` agent above — `None` only when every field above is `None`
+    (a fully deterministic call constructed no LLM agent and touched no
+    observer), so a caller can tell "no LLM ran" from "an LLM ran and used
+    its full budget" without inspecting each agent field itself.
     """
 
     assessment: AssessorAgent | None = None
     knowledge_map: KnowledgeMapAgent | None = None
     critic: CriticAgent | None = None
     curriculum: CurriculumAgent | None = None
+    observer: RunBudgetSummaryProvider | None = None
 
 
 def build_injected_agents(
@@ -63,12 +77,18 @@ def build_injected_agents(
     (Rebuild-22B), so a run-level call/wall-clock ceiling applies across every
     agent in the run rather than independently per agent.
     """
-    observer = build_run_scoped_observer()
+    observer = build_run_scoped_observer(resolve_run_budget(settings))
+    assessment = _build_assessment_agent(switches, settings, observer)
+    knowledge_map = _build_knowledge_map_agent(switches, settings, observer)
+    critic = _build_critic_agent(switches, settings, observer)
+    curriculum = _build_curriculum_agent(switches, settings, observer)
+    any_llm_agent_built = any((assessment, knowledge_map, critic, curriculum))
     return InjectedAgents(
-        assessment=_build_assessment_agent(switches, settings, observer),
-        knowledge_map=_build_knowledge_map_agent(switches, settings, observer),
-        critic=_build_critic_agent(switches, settings, observer),
-        curriculum=_build_curriculum_agent(switches, settings, observer),
+        assessment=assessment,
+        knowledge_map=knowledge_map,
+        critic=critic,
+        curriculum=curriculum,
+        observer=observer if any_llm_agent_built else None,
     )
 
 

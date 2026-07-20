@@ -90,3 +90,18 @@ class EvaluationAgent(Protocol):
     agent_name: str
 
     def evaluate_run(self, payload: EvaluationAgentInput) -> EvaluationAgentOutput: ...
+
+
+class RunBudgetSummaryProvider(Protocol):
+    """Structural match for the run-scoped LLM budget observer's summary method.
+
+    Deliberately not typed against the concrete observer/budget classes
+    directly: only `app/agents/llm/` is allowlisted to import the LLM
+    observability package (Rebuild-12A/12C scope-security boundary), and this
+    type is used by `app/agents/services/activation/factory.py` and
+    `app/agents/services/workspace_generation.py`, both outside that
+    directory. Mirrors the same structural-Protocol pattern the LLM retry
+    module's own internal exhaustion-check type already uses.
+    """
+
+    def safe_summary(self) -> dict[str, object]: ...

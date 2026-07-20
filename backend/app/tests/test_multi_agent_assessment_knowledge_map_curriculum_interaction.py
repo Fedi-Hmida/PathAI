@@ -5,16 +5,27 @@ import pytest
 from app.agents.llm.assessment import LLMAssessmentAgent
 from app.agents.llm.curriculum import LLMCurriculumAgent
 from app.agents.llm.knowledge_map import LLMKnowledgeMapAgent
+from app.agents.services.activation import factory as factory_module
 from app.agents.services.activation.errors import ActivationConfigError
 from app.api.v1.dependencies import ApiServiceContainer
 from app.core.settings import get_settings
 from app.llm.contracts import RawLLMResponse, StructuredOutputRequest
 from app.llm.fake_client import FakeLLMClient
+from app.llm.observability.budget import RunBudget, RunScopedBudgetObserver
+from app.llm.observability.sinks import LoggingObserver
 from app.orchestration.nodes import OrchestrationContext
 from app.orchestration.runner import run_straight_line_demo
 from app.schemas.assessment import AssessmentAgentOutput, AssessmentScoreOutput
 from app.schemas.enums import OrchestrationStatus
 from app.schemas.knowledge_map import KnowledgeMapAgentOutput
+
+# The orchestration-demo path's assessment step makes exactly 10 LLM calls
+# (5 questions + 5 answer scores, AssessmentAgentService.run_diagnostic) in
+# one shared observer alongside knowledge-map and curriculum. A budget that
+# exhausts at exactly this count lets assessment finish cleanly while
+# blocking knowledge-map's very first call, pre-call — the precise
+# mid-handoff cutoff this file's other tests don't cover.
+_EXHAUSTS_AFTER_ASSESSMENT = RunBudget(max_llm_calls=10)
 
 _SENTINEL_EVIDENCE_CONCEPT = "sentinel_concept_from_assessment_rebuild29"
 _SENTINEL_EVIDENCE_TEXT = "SENTINEL_EVIDENCE_TEXT_FROM_ASSESSMENT_REBUILD_29"
@@ -155,6 +166,84 @@ def test_curriculum_consumes_knowledge_maps_real_output_not_a_fixture(
     # seeded into the knowledge-map agent's fake client, not demo.CURRICULUM
     # and not a re-derived fixture.
     assert any(_SENTINEL_KNOWLEDGE_MAP_LABEL in prompt for prompt in captured_prompts)
+
+
+def test_budget_exhaustion_between_assessment_and_knowledge_map_degrades_safely(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable_all_three(monkeypatch)
+    monkeypatch.setattr(
+        factory_module,
+        "build_run_scoped_observer",
+        lambda budget=None: RunScopedBudgetObserver(
+            _EXHAUSTS_AFTER_ASSESSMENT,
+            inner=LoggingObserver(),
+        ),
+    )
+
+    container = ApiServiceContainer()
+    context = OrchestrationContext.from_container(container)
+    bundle = context.agent_services
+    assessment_agent = bundle.assessment.agent
+    knowledge_map_agent = bundle.knowledge_map.agent
+    curriculum_agent = bundle.curriculum.agent
+    assert isinstance(assessment_agent, LLMAssessmentAgent)
+    assert isinstance(knowledge_map_agent, LLMKnowledgeMapAgent)
+    assert isinstance(curriculum_agent, LLMCurriculumAgent)
+    assessment_client = assessment_agent.client
+    knowledge_map_client = knowledge_map_agent.client
+    curriculum_client = curriculum_agent.client
+    assert isinstance(assessment_client, FakeLLMClient)
+    assert isinstance(knowledge_map_client, FakeLLMClient)
+    assert isinstance(curriculum_client, FakeLLMClient)
+
+    assessment_client.payloads[AssessmentAgentOutput.__name__] = _sentinel_question_payload()
+    assessment_client.payloads[AssessmentScoreOutput.__name__] = _sentinel_score_payload()
+    # Deliberately no knowledge_map_client/curriculum_client payload seeded:
+    # if either's LLM call fired for real, FakeLLMClient would raise "no fake
+    # payload for schema" rather than silently degrading, and this test would
+    # fail loudly instead of proving the budget skipped the call entirely.
+
+    result = run_straight_line_demo(context)
+
+    # Fail-safe, not fail-loud (RULES.md §17.3): the whole run still
+    # completes even though two of its three LLM agents were cut off.
+    assert result.state.status == OrchestrationStatus.COMPLETED
+
+    # The proof this is a genuine pre-call budget skip, not some other
+    # failure mode: neither agent's client was ever invoked.
+    assert knowledge_map_client.call_count == 0
+    assert curriculum_client.call_count == 0
+    # Assessment's own 10 calls (5 questions + 5 scores) all completed before
+    # the budget exhausted, and used its LLM client for real.
+    assert assessment_client.call_count == 10
+
+    # The specific three-way-handoff proof: assessment's real (already
+    # consumed, already persisted) output survives the later exhaustion intact
+    # — the cutoff doesn't corrupt or roll back what already succeeded.
+    assert result.state.assessment_session_id is not None
+    session = container.assessment_service.get_session_by_id(
+        result.state.assessment_session_id,
+    )
+    answers = container.assessment_service.list_answers_by_session_id(
+        session.assessment_session_id,
+    )
+    all_evidence = [
+        evidence.concept_id
+        for answer in answers
+        for evidence in answer.concept_scores
+    ]
+    assert _SENTINEL_EVIDENCE_CONCEPT in all_evidence
+
+    # And the downstream knowledge map is the deterministic fallback's real
+    # output, not a corrupted/partial LLM artifact and not the LLM sentinel
+    # this test deliberately never let the knowledge-map client see.
+    assert result.state.knowledge_map_id is not None
+    knowledge_map = container.knowledge_map_service.get_by_id(
+        result.state.knowledge_map_id,
+    )
+    dumped_knowledge_map = knowledge_map.model_dump_json()
+    assert _SENTINEL_KNOWLEDGE_MAP_LABEL not in dumped_knowledge_map
 
 
 def test_non_allowlisted_combination_including_a_third_flag_still_fails(

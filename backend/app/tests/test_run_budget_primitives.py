@@ -46,7 +46,7 @@ class _SpyObserver:
 def test_run_budget_defaults() -> None:
     budget = RunBudget()
 
-    assert budget.max_llm_calls == 12
+    assert budget.max_llm_calls == 16
     assert budget.max_wall_clock_seconds == 120.0
 
 

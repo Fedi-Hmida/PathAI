@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from app.llm.observability.budget import RunBudget, RunScopedBudgetObserver
-from app.llm.observability.observer import LLMReliabilityObserver
 from app.llm.observability.sinks import LoggingObserver
 
 
-def build_run_scoped_observer(budget: RunBudget | None = None) -> LLMReliabilityObserver:
+def build_run_scoped_observer(budget: RunBudget | None = None) -> RunScopedBudgetObserver:
     """Build one observer shared by every agent constructed in a single run.
 
     Lives under `app/agents/llm/`, not `app/agents/services/activation/`, for

@@ -124,7 +124,11 @@ def test_route_degrades_to_fallback_when_run_budget_already_exhausted(
         ),
     )
     assert exhausted_observer.exhausted() is True
-    monkeypatch.setattr(factory_module, "build_run_scoped_observer", lambda: exhausted_observer)
+    monkeypatch.setattr(
+        factory_module,
+        "build_run_scoped_observer",
+        lambda budget=None: exhausted_observer,
+    )
     call_log = _spy_on_generate(monkeypatch)
 
     response = _client().post("/api/v1/orchestration/runs")

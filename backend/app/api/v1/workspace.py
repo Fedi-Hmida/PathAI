@@ -76,4 +76,5 @@ def generate_my_workspace(
         evaluation_report_id=artifacts.evaluation_report.evaluation_report_id,
         quiz_id=artifacts.quiz.quiz_id,
         quiz_attempt_id=artifacts.quiz_attempt.quiz_attempt_id,
+        llm_budget_summary=artifacts.llm_budget_summary,
     )

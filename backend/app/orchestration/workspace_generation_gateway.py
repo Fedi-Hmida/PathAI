@@ -64,4 +64,5 @@ def build_workspace_generation_service(
         evaluations=container.evaluation_service,
         quizzes=container.quiz_service,
         progress=container.progress_service,
+        llm_observer=injected.observer,
     )

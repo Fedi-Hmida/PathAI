@@ -114,10 +114,10 @@ def test_build_injected_agents_constructs_the_observer_exactly_once(
     call_count = 0
     real_builder = factory_module.build_run_scoped_observer
 
-    def _counting_builder() -> LLMReliabilityObserver:
+    def _counting_builder(budget: RunBudget | None = None) -> LLMReliabilityObserver:
         nonlocal call_count
         call_count += 1
-        return real_builder()
+        return real_builder(budget)
 
     monkeypatch.setattr(factory_module, "build_run_scoped_observer", _counting_builder)
 
@@ -133,7 +133,11 @@ def test_build_injected_agents_shares_one_observer_instance_across_agent_roles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sentinel = build_run_scoped_observer()
-    monkeypatch.setattr(factory_module, "build_run_scoped_observer", lambda: sentinel)
+    monkeypatch.setattr(
+        factory_module,
+        "build_run_scoped_observer",
+        lambda budget=None: sentinel,
+    )
 
     switches = AgentIntegrationSwitches(curriculum_agent_mode=CurriculumAgentMode.LLM)
     settings = Settings(llm_provider="fake")

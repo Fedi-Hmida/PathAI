@@ -58,6 +58,21 @@ class Settings(BaseSettings):
         default=True,
         validation_alias="PATHAI_LLM_SELF_CORRECTION",
     )
+    # Calibrated 2026-07-20 (Rebuild-40) against real measured behavior of the
+    # allowlisted assessment+knowledge-map+curriculum combo on Groq — see
+    # RunBudget's docstring for the measurement this default is based on.
+    llm_run_budget_max_calls: int = Field(
+        default=16,
+        ge=1,
+        le=1000,
+        validation_alias="PATHAI_LLM_RUN_BUDGET_MAX_CALLS",
+    )
+    llm_run_budget_max_wall_clock_seconds: float = Field(
+        default=120.0,
+        gt=0.0,
+        le=3600.0,
+        validation_alias="PATHAI_LLM_RUN_BUDGET_MAX_WALL_CLOCK_SECONDS",
+    )
     mongodb_uri: str = ""
     mongodb_database_name: str = "pathai"
     repository_backend: str = "fake"

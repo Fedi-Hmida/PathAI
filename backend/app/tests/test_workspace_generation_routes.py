@@ -5,9 +5,11 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
+import app.llm.fake_client as fake_client_module
 from app.api.v1.dependencies import reset_api_container_for_tests
 from app.core.settings import get_settings
 from app.main import create_app
+from app.schemas.knowledge_map import KnowledgeMapAgentOutput
 
 
 @pytest.fixture
@@ -216,3 +218,88 @@ def test_workspace_generate_route_is_hidden_when_auth_disabled(
 
     assert response.status_code == 404
     get_settings.cache_clear()
+
+
+def test_generate_without_any_llm_agent_carries_no_budget_summary(
+    auth_enabled_app: None,
+) -> None:
+    """§17.1.4 surface (Big_Audit Step 4): a fully deterministic run touches no
+    observer, so the field must stay null, not a fabricated empty summary."""
+    client = TestClient(create_app())
+    token = _register(client, "learner@example.com")
+    _create_workspace(client, token)
+    _complete_assessment(client, token)
+
+    response = client.post("/api/v1/me/workspace/generate", headers=_auth_header(token))
+
+    assert response.status_code == 200
+    assert response.json()["llm_budget_summary"] is None
+
+
+def test_generate_with_an_llm_agent_carries_a_redacted_budget_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PATHAI_ENABLE_AUTH", "true")
+    monkeypatch.setenv("JWT_SECRET_KEY", "workspace-generation-test-secret-0123456789")
+    monkeypatch.setenv("REFRESH_COOKIE_SECURE", "false")
+    monkeypatch.setenv("PATHAI_ENABLE_LLM_KNOWLEDGE_MAP_AGENT", "true")
+    monkeypatch.setenv("LLM_PROVIDER", "fake")
+    _augment_default_payloads(
+        monkeypatch,
+        {KnowledgeMapAgentOutput.__name__: _valid_knowledge_map_payload()},
+    )
+    get_settings.cache_clear()
+    reset_api_container_for_tests()
+    client = TestClient(create_app())
+    token = _register(client, "learner@example.com")
+    _create_workspace(client, token)
+    _complete_assessment(client, token)
+
+    response = client.post("/api/v1/me/workspace/generate", headers=_auth_header(token))
+
+    assert response.status_code == 200
+    summary = response.json()["llm_budget_summary"]
+    assert summary is not None
+    assert summary["llm_call_count"] >= 1
+    assert summary["max_llm_calls"] == 16
+    assert summary["max_wall_clock_seconds"] == 120.0
+    assert summary["exhausted"] is False
+    assert summary["exhaustion_reason"] is None
+    # Redaction (RULES.md §7/§9): a genuinely secret-shaped value must never
+    # reach this HTTP response, however it got constructed.
+    assert "sk-" not in response.text
+    assert "Bearer" not in response.text
+    get_settings.cache_clear()
+
+
+def _augment_default_payloads(
+    monkeypatch: pytest.MonkeyPatch,
+    extra: dict[str, object],
+) -> None:
+    original_default_payloads = fake_client_module._default_payloads
+
+    def _augmented() -> dict[str, object]:
+        payloads = original_default_payloads()
+        payloads.update(extra)
+        return payloads
+
+    monkeypatch.setattr(fake_client_module, "_default_payloads", _augmented)
+
+
+def _valid_knowledge_map_payload() -> dict[str, object]:
+    return {
+        "concepts": [
+            {
+                "concept_id": "workspace_generation_test_concept",
+                "label": "Workspace generation test concept",
+                "mastery_score": 0.3,
+                "classification": "weak",
+            },
+        ],
+        "strong_concepts": [],
+        "developing_concepts": [],
+        "weak_concepts": ["workspace_generation_test_concept"],
+        "missing_concepts": [],
+        "confidence": 0.6,
+        "summary": "Workspace generation route test knowledge map summary.",
+    }

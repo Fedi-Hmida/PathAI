@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import uuid4
 
+from app.agents.contracts import RunBudgetSummaryProvider
 from app.agents.services.critic import CriticAgentService
 from app.agents.services.curriculum import CurriculumAgentService
 from app.agents.services.evaluation import EvaluationAgentService
@@ -18,6 +19,7 @@ from app.schemas.goal import LearningGoalDTO
 from app.schemas.knowledge_map import KnowledgeMapDTO
 from app.schemas.progress import ProgressStateDTO, TopicProgressDTO
 from app.schemas.quiz import QuizAttemptDTO, QuizDTO
+from app.schemas.workspace import LLMRunBudgetSummary
 from app.services import (
     AssessmentService,
     CriticService,
@@ -46,6 +48,7 @@ class GeneratedWorkspaceArtifacts:
     evaluation_report: EvaluationReportDTO
     quiz: QuizDTO
     quiz_attempt: QuizAttemptDTO
+    llm_budget_summary: LLMRunBudgetSummary | None = None
 
 
 @dataclass(slots=True)
@@ -80,6 +83,7 @@ class WorkspaceGenerationService:
     evaluations: EvaluationService
     quizzes: QuizService
     progress: ProgressService
+    llm_observer: RunBudgetSummaryProvider | None = None
 
     def generate(self, goal: LearningGoalDTO) -> GeneratedWorkspaceArtifacts:
         session = self._latest_completed_session(goal)
@@ -161,7 +165,13 @@ class WorkspaceGenerationService:
             evaluation_report=evaluation_report,
             quiz=quiz,
             quiz_attempt=quiz_attempt,
+            llm_budget_summary=self._llm_budget_summary(),
         )
+
+    def _llm_budget_summary(self) -> LLMRunBudgetSummary | None:
+        if self.llm_observer is None:
+            return None
+        return LLMRunBudgetSummary(**self.llm_observer.safe_summary())
 
     def _progress_state_for_quiz(
         self,

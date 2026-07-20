@@ -85,9 +85,9 @@ def test_looping_run_stays_under_the_unchanged_run_budget_and_terminates(
     total_llm_calls = curriculum_client.call_count + critic_client.call_count
     # One capped revision = 2 curriculum + 2 critic calls.
     assert total_llm_calls == 4
-    # The Rebuild-22 run budget is unchanged and the loop stays well under it —
+    # The Rebuild-40-calibrated run budget still comfortably covers the loop —
     # the hard revision cap, not a re-sized or separate budget, is the bound.
-    assert RunBudget().max_llm_calls == 12
+    assert RunBudget().max_llm_calls == 16
     assert total_llm_calls < RunBudget().max_llm_calls
     # The bound is the reused revision counter, capped at 1 — no new accounting.
     assert result.state.critic_revision_attempts == 1

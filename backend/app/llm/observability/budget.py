@@ -15,12 +15,40 @@ MAX_WALL_CLOCK_REASON = "max_wall_clock_seconds"
 class RunBudget:
     """A ceiling on one orchestration run, above any single agent's retry policy.
 
-    Defaults are deliberately non-binding for every path that exists today: the
-    most expensive single-agent run is Assessment at 10 LLM calls (5 questions +
-    5 answer scores). They have never been measured against a real provider.
+    Calibrated 2026-07-20 (Rebuild-40, Big_Audit Step 4) against real measured
+    behavior of the allowlisted assessment+knowledge-map+curriculum combo on
+    Groq — the first time these defaults were checked against a real provider
+    rather than left as an untested guess:
+
+    - The real per-user `/me/workspace/generate` path shares one observer
+      across only the knowledge-map and curriculum calls (assessment's own
+      10 calls — 5 questions + 5 answer scores — happen earlier, across
+      separate `/me/assessment/*` requests, each with its own fresh observer).
+      A clean run there used 2 calls and ~5s of wall clock: comfortable
+      headroom either way.
+    - The orchestration-demo path (`run_straight_line_demo`, and this file's
+      own interaction-test construction) shares one observer across all three
+      agents in one call: assessment's 10 + knowledge-map's 1 + curriculum's 1
+      = exactly 12 calls in a clean run with zero retries — the old default of
+      12 left that flow with *no* headroom at all, so a single real retry
+      (observed repeatedly as genuine Groq 429s under load in Big_Audit Step 3)
+      would degrade an otherwise-healthy run. `max_llm_calls` is raised to 16
+      to give that flow real retry headroom while still catching genuine
+      runaway/looping behavior.
+    - `max_wall_clock_seconds` is left unchanged: every real failure observed
+      (Step 3's 429s) failed fast via the existing per-agent `fail_loud` path
+      in a few seconds, never by approaching the 120s run-level ceiling, so
+      there is no measured case for moving it.
+
+    Production values are settings-driven (`resolve_run_budget`,
+    `app/agents/llm/run_budget_selection.py`) — these are the dataclass
+    defaults used for direct construction (tests, and any caller that builds
+    a `RunBudget` without going through `Settings`), chosen to match the
+    settings-driven default exactly when no `PATHAI_LLM_RUN_BUDGET_*` env var
+    overrides it.
     """
 
-    max_llm_calls: int = 12
+    max_llm_calls: int = 16
     max_wall_clock_seconds: float = 120.0
 
     def __post_init__(self) -> None:
