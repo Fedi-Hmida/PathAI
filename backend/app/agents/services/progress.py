@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.agents.contracts import ProgressAgent
-from app.agents.services.common import create_or_get, validate_agent_output
+from app.agents.services.common import create_or_get, create_or_replace, validate_agent_output
 from app.schemas.curriculum import CurriculumDTO
 from app.schemas.goal import LearningGoalDTO
 from app.schemas.progress import ProgressStateDTO
@@ -21,19 +21,31 @@ class ProgressAgentService:
         goal: LearningGoalDTO,
         curriculum: CurriculumDTO,
         quiz_attempt: QuizAttemptDTO | None = None,
+        *,
+        progress_state_id: str | None = None,
     ) -> ProgressStateDTO:
         output = validate_agent_output(
             agent_name=self.agent.agent_name,
             schema=ProgressStateDTO,
             payload=self.agent.build_progress_state(goal, curriculum, quiz_attempt),
         )
-        progress_state = output.model_copy(
-            update={
-                "goal_id": goal.goal_id,
-                "curriculum_id": curriculum.curriculum_id,
-            },
-            deep=True,
-        )
+        update: dict[str, object] = {
+            "goal_id": goal.goal_id,
+            "curriculum_id": curriculum.curriculum_id,
+        }
+        if progress_state_id is not None:
+            update["progress_state_id"] = progress_state_id
+        progress_state = output.model_copy(update=update, deep=True)
+        # An explicit ID means a per-user workspace regeneration: create it
+        # fresh the first time, or overwrite in place on a repeat call -
+        # unlike create_or_get's first-write-wins semantics, which fits only
+        # the single fixed-ID demo pipeline below.
+        if progress_state_id is not None:
+            return create_or_replace(
+                create=self.progress.create,
+                save=self.progress.save,
+                record=progress_state,
+            )
         return create_or_get(
             create=self.progress.create,
             get=self.progress.get_by_id,

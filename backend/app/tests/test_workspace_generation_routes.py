@@ -216,8 +216,14 @@ def test_generate_after_completed_assessment_creates_fresh_real_content(
     assert quiz_summary is not None
     assert 0.0 <= quiz_summary["latest_score"] <= 1.0
     assert isinstance(quiz_summary["weak_concepts"], list)
-    # The remaining three tiles stay honestly empty - future phase.
-    assert dashboard_after["progress_summary"] is None
+    # Step 9: progress is now real too, built from the real quiz attempt (see
+    # test_progress_behavior.py for the RAG-vocabulary-free unit check on the
+    # progress agent's own logic).
+    progress_summary = dashboard_after["progress_summary"]
+    assert progress_summary is not None
+    assert 0 <= progress_summary["completion_percentage"] <= 100
+    assert artifact_ids["progress_state_id"]
+    # The remaining two tiles stay honestly empty - future phase.
     assert dashboard_after["resources_summary"]["total_attached"] == 0
     assert dashboard_after["adaptation_summary"]["recent_events"] == []
 
@@ -251,6 +257,60 @@ def test_regenerating_reuses_the_same_quiz_id_instead_of_duplicating(
     # reused and overwritten in place on regeneration, never duplicated.
     assert first["quiz_id"] == second["quiz_id"]
     assert first["quiz_attempt_id"] == second["quiz_attempt_id"]
+
+
+def test_get_progress_returns_real_data_after_generate(auth_enabled_app: None) -> None:
+    client = TestClient(create_app())
+    token = _register(client, "learner@example.com")
+    run_id = _create_workspace(client, token).json()["run_id"]
+    _complete_assessment(client, token)
+
+    generate_response = client.post(
+        "/api/v1/me/workspace/generate",
+        headers=_auth_header(token),
+    )
+    assert generate_response.status_code == 200
+
+    dashboard = client.get(f"/api/v1/dashboard/{run_id}", headers=_auth_header(token)).json()
+    progress_state_id = dashboard["navigation_summary"]["artifact_ids"]["progress_state_id"]
+    assert progress_state_id
+
+    progress_response = client.get(
+        f"/api/v1/progress/{progress_state_id}",
+        headers=_auth_header(token),
+    )
+    assert progress_response.status_code == 200
+    progress_body = progress_response.json()
+    assert progress_body["progress_state_id"] == progress_state_id
+    assert len(progress_body["topic_progress"]) >= 1
+    assert progress_body["status"] in {
+        "not_started",
+        "in_progress",
+        "adaptation_needed",
+        "completed",
+    }
+    progress_summary = dashboard["progress_summary"]
+    assert progress_summary is not None
+    assert progress_summary["completion_percentage"] == round(
+        progress_body["overall_completion"] * 100,
+    )
+
+    # Regenerating must update the same progress record through the real
+    # API, not create a second one - mirroring the service-layer proof in
+    # test_progress_behavior.py.
+    second_generate_response = client.post(
+        "/api/v1/me/workspace/generate",
+        headers=_auth_header(token),
+    )
+    assert second_generate_response.status_code == 200
+    dashboard_after_regen = client.get(
+        f"/api/v1/dashboard/{run_id}",
+        headers=_auth_header(token),
+    ).json()
+    assert (
+        dashboard_after_regen["navigation_summary"]["artifact_ids"]["progress_state_id"]
+        == progress_state_id
+    )
 
 
 def test_workspace_generate_route_is_hidden_when_auth_disabled(

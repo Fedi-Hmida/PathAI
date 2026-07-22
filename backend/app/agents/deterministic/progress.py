@@ -38,7 +38,7 @@ def build_progress_state(
         for topic in topics
     ]
     current_topic_id = _current_topic_id(topic_progress, topics)
-    stuck_events = _stuck_events(topic_progress)
+    stuck_events = _stuck_events(topic_progress, topics)
     return ProgressStateDTO(
         progress_state_id=demo.PROGRESS_ID,
         goal_id=goal.goal_id,
@@ -182,14 +182,18 @@ def _current_topic_id(
     return topics[0].topic_id if topics else None
 
 
-def _stuck_events(topic_progress: list[TopicProgressDTO]) -> list[StuckEventDTO]:
+def _stuck_events(
+    topic_progress: list[TopicProgressDTO],
+    topics: list[CurriculumTopicDTO],
+) -> list[StuckEventDTO]:
+    concepts_by_topic = {topic.topic_id: topic.concept_ids for topic in topics}
     events: list[StuckEventDTO] = []
     for progress in topic_progress:
         if progress.stuck_count >= STUCK_COUNT_THRESHOLD:
             events.append(
                 StuckEventDTO(
                     topic_id=progress.topic_id,
-                    concept_ids=_concepts_for_topic(progress.topic_id),
+                    concept_ids=concepts_by_topic.get(progress.topic_id, []),
                     reason="Deterministic quiz evidence crossed the stuck-topic threshold.",
                     created_at=demo.NOW,
                 ),
@@ -234,16 +238,6 @@ def _next_action(
 
 def _topics(curriculum: CurriculumDTO) -> list[CurriculumTopicDTO]:
     return [topic for week in curriculum.weeks for topic in week.topics]
-
-
-def _concepts_for_topic(topic_id: str) -> list[str]:
-    if "retrieval" in topic_id:
-        return ["retrieval_evaluation"]
-    if "vector" in topic_id:
-        return ["vector_search"]
-    if "chunk" in topic_id:
-        return ["chunking"]
-    return ["rag_fundamentals"]
 
 
 def _format_concepts(concepts: Iterable[str]) -> str:
