@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from typing import Annotated
+
+from fastapi import APIRouter, Body
 
 from app.api.v1.dependencies import (
     AuthorizationDependency,
     CurrentUserOrNoneDependency,
+    QuizAgentServiceDependency,
     QuizServiceDependency,
 )
 from app.schemas.enums import QuizAttemptStatus
@@ -12,6 +15,7 @@ from app.schemas.ids import AttemptId, QuizId
 from app.schemas.quiz import (
     LearnerQuizDTO,
     LearnerQuizQuestionDTO,
+    QuizAnswerSubmission,
     QuizAttemptReviewDTO,
     QuizDTO,
     QuizQuestionDTO,
@@ -30,6 +34,26 @@ def get_quiz(
     quiz = service.get_quiz_by_id(quiz_id)
     authz.assert_goal_access(current_user, quiz.goal_id)
     return _to_learner_quiz(quiz)
+
+
+@router.post("/{quiz_id}/attempts", response_model=QuizAttemptReviewDTO, status_code=201)
+def submit_quiz_attempt(
+    quiz_id: QuizId,
+    answers: Annotated[list[QuizAnswerSubmission], Body(min_length=1, max_length=50)],
+    service: QuizServiceDependency,
+    quiz_agents: QuizAgentServiceDependency,
+    current_user: CurrentUserOrNoneDependency,
+    authz: AuthorizationDependency,
+) -> QuizAttemptReviewDTO:
+    """A real learner attempt, scored immediately via the unchanged
+    deterministic scorer and persisted as a genuinely new attempt (never an
+    overwrite of a prior one - a goal can accumulate multiple real attempts
+    as a learner retakes the quiz; see ``dashboard.py``'s
+    latest-attempt-by-``submitted_at`` selection)."""
+    quiz = service.get_quiz_by_id(quiz_id)
+    authz.assert_goal_access(current_user, quiz.goal_id)
+    attempt = quiz_agents.submit_attempt(quiz, answers)
+    return QuizAttemptReviewDTO(attempt=attempt, questions=quiz.questions)
 
 
 @router.get("/{quiz_id}/attempts/{attempt_id}", response_model=QuizAttemptReviewDTO)

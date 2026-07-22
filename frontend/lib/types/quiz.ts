@@ -27,6 +27,15 @@ export type LearnerQuizQuestionDTO = {
   options: string[];
 };
 
+// GET /quizzes/{quiz_id} - the learner-safe question set (no answer key),
+// used to drive the take flow before any attempt exists.
+export type LearnerQuizDTO = {
+  quiz_id: string;
+  title: string;
+  questions: LearnerQuizQuestionDTO[];
+  scoring_policy: { type: string; partial_credit: boolean };
+};
+
 export type QuizAnswerSubmission = {
   question_id: string;
   answer_text: string | null;

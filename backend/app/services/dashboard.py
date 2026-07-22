@@ -73,6 +73,7 @@ class DashboardService:
         assessment = _assessment_for_knowledge_map(self.assessments, knowledge_map)
         progress = _last_or_none(self.progress_states.list_by_goal_id(goal.goal_id))
         attachments = self.resources.list_attachments_by_goal_id(goal.goal_id)
+        quiz = _last_or_none(self.quizzes.list_quizzes_by_goal_id(goal.goal_id))
         attempts = self.quizzes.list_attempts_by_goal_id(goal.goal_id)
         adaptations = self.adaptations.list_by_goal_id(goal.goal_id)
         critic = (
@@ -128,7 +129,7 @@ class DashboardService:
                     else None,
                     curriculum_id=curriculum.curriculum_id if curriculum else None,
                     progress_state_id=progress.progress_state_id if progress else None,
-                    quiz_id=latest_attempt.quiz_id if latest_attempt else None,
+                    quiz_id=quiz.quiz_id if quiz else None,
                     quiz_attempt_id=latest_attempt.quiz_attempt_id
                     if latest_attempt
                     else None,

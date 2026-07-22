@@ -50,7 +50,7 @@ class GeneratedWorkspaceArtifacts:
     critic_review: CriticReviewDTO
     evaluation_report: EvaluationReportDTO
     quiz: QuizDTO
-    quiz_attempt: QuizAttemptDTO
+    quiz_attempt: QuizAttemptDTO | None
     progress: ProgressStateDTO
     llm_budget_summary: LLMRunBudgetSummary | None = None
 
@@ -58,16 +58,24 @@ class GeneratedWorkspaceArtifacts:
 @dataclass(slots=True)
 class WorkspaceGenerationService:
     """Builds a single user's knowledge map, curriculum, critic review,
-    evaluation report, quiz (+ scored attempt), and real persisted progress
-    state from their own completed live assessment. A fresh workspace seeds
-    none of them (`app/fixtures/workspace_factory.py`), so the first call
-    here mints fresh IDs and creates them; repeat calls find the goal's
-    existing artifacts and regenerate them in place. The quiz agent needs a
-    `ProgressStateDTO` before the quiz attempt exists (it only reads
+    evaluation report, quiz, and real persisted progress state from their own
+    completed live assessment. A fresh workspace seeds none of them
+    (`app/fixtures/workspace_factory.py`), so the first call here mints fresh
+    IDs and creates them; repeat calls find the goal's existing artifacts and
+    regenerate them in place. The quiz agent needs a `ProgressStateDTO`
+    before its own quiz-generation logic runs (it only reads
     `weak_concepts`), so `generate()` computes a lightweight, real (not
-    persisted) weak-concepts seed to feed it, then calls the real
-    `ProgressAgentService.build()` exactly once, after the quiz attempt
-    exists, to persist the actual topic-by-topic progress (see ADR-0003).
+    persisted) weak-concepts seed to feed it.
+
+    Unlike Rebuild-37, `generate()` no longer fabricates a scored quiz
+    attempt alongside the quiz (Big_Audit Step 10): only the quiz's questions
+    are built here. A real attempt only ever comes from a genuine learner
+    submission through `POST /quizzes/{quiz_id}/attempts`
+    (`QuizAgentService.submit_attempt`), so `progress_agent.build()` and
+    `evaluation_agent.evaluate()` are called with `quiz_attempt=None` here -
+    both already tolerate that absence honestly (the same pattern already
+    used for `adaptation_event=None`), until a real attempt exists.
+
     Resources and adaptation are deliberately NOT generated here - resources
     are still backed by an empty RAG corpus (Rebuild-16) and adaptation
     depends on real user activity this service doesn't fabricate; they stay
@@ -75,7 +83,9 @@ class WorkspaceGenerationService:
     counterpart to the orchestration graph's
     `load_knowledge_map`/`load_curriculum`/`load_critic_review`/
     `load_evaluation`/`load_progress` nodes, which only ever run against the
-    fixed canonical demo goal (`app/orchestration/runner.py`)."""
+    fixed canonical demo goal (`app/orchestration/runner.py`) and still use
+    `QuizAgentService.build()`'s original fused quiz+fabricated-attempt
+    behavior unchanged."""
 
     knowledge_map_agent: KnowledgeMapAgentService
     curriculum_agent: CurriculumAgentService
@@ -138,39 +148,34 @@ class WorkspaceGenerationService:
             critic_review_id=critic_review_id,
         )
         existing_quizzes = self.quizzes.list_quizzes_by_goal_id(goal.goal_id)
-        existing_attempts = self.quizzes.list_attempts_by_goal_id(goal.goal_id)
         quiz_id = existing_quizzes[0].quiz_id if existing_quizzes else _new_id("quiz")
-        quiz_attempt_id = (
-            existing_attempts[0].quiz_attempt_id if existing_attempts else _new_id("attempt")
-        )
         existing_progress = self.progress.list_by_goal_id(goal.goal_id)
         progress_state_id = (
             existing_progress[0].progress_state_id if existing_progress else _new_id("progress")
         )
 
         # The quiz agent only reads `weak_concepts` off the progress state
-        # (`QuizAgentService.build`) and must run before a quiz attempt
-        # exists, so this transient seed is never persisted - the real,
-        # persisted progress state is built below, after the attempt exists.
+        # (`QuizAgentService.build_quiz`), so this transient seed is never
+        # persisted - the real, persisted progress state is built below.
         progress_seed = _progress_seed_for_quiz(goal, curriculum)
-        quiz, quiz_attempt = self.quiz_agent.build(
+        quiz = self.quiz_agent.build_quiz(
             goal,
             curriculum,
             progress_seed,
             quiz_id=quiz_id,
-            quiz_attempt_id=quiz_attempt_id,
         )
 
+        # No real quiz attempt exists yet (a fresh quiz has none until a
+        # learner actually takes it via `POST /quizzes/{quiz_id}/attempts`) -
+        # both agents below already score its absence honestly, the same
+        # pattern already used for `adaptation_event=None`.
         progress = self.progress_agent.build(
             goal,
             curriculum,
-            quiz_attempt,
+            None,
             progress_state_id=progress_state_id,
         )
 
-        # No adaptation event exists yet (depends on real user activity this
-        # service doesn't fabricate) - the evaluation agent already scores
-        # its absence honestly (0.0 on that metric).
         evaluation_report = self.evaluation_agent.evaluate(
             goal,
             session,
@@ -178,7 +183,7 @@ class WorkspaceGenerationService:
             curriculum,
             [],
             critic_review,
-            quiz_attempt,
+            None,
             None,
             evaluation_report_id=evaluation_report_id,
         )
@@ -189,7 +194,7 @@ class WorkspaceGenerationService:
             critic_review=critic_review,
             evaluation_report=evaluation_report,
             quiz=quiz,
-            quiz_attempt=quiz_attempt,
+            quiz_attempt=None,
             progress=progress,
             llm_budget_summary=self._llm_budget_summary(),
         )

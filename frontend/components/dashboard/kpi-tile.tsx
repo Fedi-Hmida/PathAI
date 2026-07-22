@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -18,11 +19,12 @@ type KpiTileProps = {
   statusText?: string;
   tone?: KpiTone;
   icon?: LucideIcon;
+  href?: string;
 };
 
-export function KpiTile({ label, value, statusText, tone = "neutral", icon: Icon }: KpiTileProps) {
-  return (
-    <Card className="gap-2 py-5 px-5">
+export function KpiTile({ label, value, statusText, tone = "neutral", icon: Icon, href }: KpiTileProps) {
+  const content = (
+    <Card className={cn("gap-2 py-5 px-5", href ? "transition-colors hover:bg-surface-sunken" : null)}>
       <div className="flex items-center justify-between">
         <span className="text-tertiary text-[11px] font-semibold tracking-widest uppercase">
           {label}
@@ -37,4 +39,6 @@ export function KpiTile({ label, value, statusText, tone = "neutral", icon: Icon
       ) : null}
     </Card>
   );
+
+  return href ? <Link href={href}>{content}</Link> : content;
 }

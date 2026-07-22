@@ -127,6 +127,7 @@ function DashboardView() {
   const { dashboard } = state;
   const runStatus = RUN_STATUS_CONFIG[dashboard.run_summary.status];
   const quiz = dashboard.quiz_summary;
+  const quizId = dashboard.navigation_summary.artifact_ids.quiz_id ?? null;
   const critic = dashboard.critic_summary;
   const evaluation = dashboard.evaluation_summary;
   const resources = dashboard.resources_summary;
@@ -166,12 +167,15 @@ function DashboardView() {
           value={formatScore(quiz?.latest_score)}
           statusText={
             quiz === null
-              ? "No quiz attempts yet"
+              ? quizId
+                ? "Take the quiz to see your results"
+                : "No quiz attempts yet"
               : quiz.weak_concepts.length > 0
                 ? `${quiz.weak_concepts.length} concept${quiz.weak_concepts.length === 1 ? "" : "s"} to review`
                 : undefined
           }
           tone="neutral"
+          href={quiz === null && quizId ? `/quiz/${quizId}/take` : undefined}
         />
 
         <KpiTile

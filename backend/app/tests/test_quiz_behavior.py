@@ -219,7 +219,9 @@ def test_quiz_attempt_review_route_denies_a_different_owners_attempt_with_404(
         "/api/v1/me/workspace/generate", headers=_auth_header(owner_token)
     ).json()
     quiz_id = generated["quiz_id"]
-    attempt_id = generated["quiz_attempt_id"]
+    # Step 10: generate() no longer fabricates an attempt - submit a real one
+    # through the actual take->submit path before reviewing it.
+    attempt_id = _submit_real_attempt(client, owner_token, quiz_id)["attempt"]["quiz_attempt_id"]
 
     owner_response = client.get(
         f"/api/v1/quizzes/{quiz_id}/attempts/{attempt_id}",
@@ -239,6 +241,126 @@ def test_quiz_attempt_review_route_denies_a_different_owners_attempt_with_404(
     # a 403, and never a 200 leaking the owner's answer-keyed data.
     assert other_response.status_code == 404
     assert other_response.json() != owner_response.json()
+
+
+def test_submit_quiz_attempt_route_scores_real_answers_and_persists_a_scored_attempt(
+    _auth_enabled_app: None,
+) -> None:
+    client = TestClient(create_app())
+    token = _register(client, "quiz-submit-owner@example.com")
+    _create_workspace(client, token)
+    _complete_assessment(client, token)
+    generated = client.post(
+        "/api/v1/me/workspace/generate", headers=_auth_header(token)
+    ).json()
+    quiz_id = generated["quiz_id"]
+    assert generated["quiz_attempt_id"] is None
+
+    review = _submit_real_attempt(client, token, quiz_id)
+
+    assert review["attempt"]["quiz_id"] == quiz_id
+    assert review["attempt"]["status"] == "scored"
+    assert 0.0 <= review["attempt"]["total_score"] <= 1.0
+    assert review["attempt"]["total_questions"] == len(review["questions"])
+    # A real answer key is present for the freshly SCORED attempt, same shape
+    # the review GET route already returns.
+    assert review["questions"][0]["correct_answer"]
+
+    # The real attempt is now persisted and independently fetchable.
+    fetched = client.get(
+        f"/api/v1/quizzes/{quiz_id}/attempts/{review['attempt']['quiz_attempt_id']}",
+        headers=_auth_header(token),
+    )
+    assert fetched.status_code == 200
+    assert fetched.json()["attempt"] == review["attempt"]
+
+
+def test_submitting_a_quiz_twice_creates_two_distinct_attempts(
+    _auth_enabled_app: None,
+) -> None:
+    client = TestClient(create_app())
+    token = _register(client, "quiz-retake@example.com")
+    _create_workspace(client, token)
+    _complete_assessment(client, token)
+    quiz_id = client.post(
+        "/api/v1/me/workspace/generate", headers=_auth_header(token)
+    ).json()["quiz_id"]
+
+    first = _submit_real_attempt(client, token, quiz_id)
+    second = _submit_real_attempt(client, token, quiz_id)
+
+    # A retake creates a genuinely new attempt, never overwrites the prior
+    # one - dashboard.py's latest-attempt-by-submitted_at selection already
+    # assumes multiple real attempts can accumulate per goal.
+    assert first["attempt"]["quiz_attempt_id"] != second["attempt"]["quiz_attempt_id"]
+    both_still_fetchable = [
+        client.get(
+            f"/api/v1/quizzes/{quiz_id}/attempts/{attempt_id}",
+            headers=_auth_header(token),
+        ).status_code
+        for attempt_id in (
+            first["attempt"]["quiz_attempt_id"],
+            second["attempt"]["quiz_attempt_id"],
+        )
+    ]
+    assert both_still_fetchable == [200, 200]
+
+
+def test_submit_quiz_attempt_route_is_owner_gated(
+    _auth_enabled_app: None,
+) -> None:
+    client = TestClient(create_app())
+    owner_token = _register(client, "quiz-submit-gated-owner@example.com")
+    _create_workspace(client, owner_token)
+    _complete_assessment(client, owner_token)
+    quiz_id = client.post(
+        "/api/v1/me/workspace/generate", headers=_auth_header(owner_token)
+    ).json()["quiz_id"]
+
+    other_token = _register(client, "quiz-submit-gated-other@example.com")
+
+    response = client.post(
+        f"/api/v1/quizzes/{quiz_id}/attempts",
+        headers=_auth_header(other_token),
+        json=[{"question_id": "question_quiz_does_not_matter", "selected_options": ["x"]}],
+    )
+
+    assert response.status_code == 404
+
+
+def test_submit_quiz_attempt_route_404s_for_a_nonexistent_quiz(
+    _auth_enabled_app: None,
+) -> None:
+    client = TestClient(create_app())
+    token = _register(client, "quiz-submit-missing@example.com")
+
+    response = client.post(
+        "/api/v1/quizzes/quiz_does_not_exist/attempts",
+        headers=_auth_header(token),
+        json=[{"question_id": "question_quiz_does_not_matter", "selected_options": ["x"]}],
+    )
+
+    assert response.status_code == 404
+
+
+def test_submit_quiz_attempt_route_rejects_an_empty_answer_list(
+    _auth_enabled_app: None,
+) -> None:
+    client = TestClient(create_app())
+    token = _register(client, "quiz-submit-empty@example.com")
+    _create_workspace(client, token)
+    _complete_assessment(client, token)
+    quiz_id = client.post(
+        "/api/v1/me/workspace/generate", headers=_auth_header(token)
+    ).json()["quiz_id"]
+
+    response = client.post(
+        f"/api/v1/quizzes/{quiz_id}/attempts",
+        headers=_auth_header(token),
+        json=[],
+    )
+
+    assert response.status_code == 422
 
 
 def _client() -> TestClient:
@@ -286,6 +408,27 @@ def _complete_assessment(client: TestClient, token: str) -> None:
         next_question = response.json()["session"]["current_question"]
         if next_question is not None:
             question_id = next_question["question_id"]
+
+
+def _submit_real_attempt(client: TestClient, token: str, quiz_id: str) -> dict:
+    learner_quiz = client.get(
+        f"/api/v1/quizzes/{quiz_id}",
+        headers=_auth_header(token),
+    ).json()
+    answers = [
+        {
+            "question_id": question["question_id"],
+            "selected_options": question["options"][:1],
+        }
+        for question in learner_quiz["questions"]
+    ]
+    response = client.post(
+        f"/api/v1/quizzes/{quiz_id}/attempts",
+        headers=_auth_header(token),
+        json=answers,
+    )
+    assert response.status_code == 201
+    return response.json()  # type: ignore[no-any-return]
 
 
 def test_quiz_agent_service_never_falls_back_to_the_demo_target_concepts() -> None:

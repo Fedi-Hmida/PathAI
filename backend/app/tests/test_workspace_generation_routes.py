@@ -176,7 +176,9 @@ def test_generate_after_completed_assessment_creates_fresh_real_content(
     assert body["critic_review_id"] != "critic_demo_rag"
     assert body["evaluation_report_id"] != "eval_demo_rag"
     assert body["quiz_id"] != "quiz_demo_rag"
-    assert body["quiz_attempt_id"] != "attempt_demo_rag_low_score"
+    # Step 10: generate() no longer fabricates a scored attempt - a fresh
+    # quiz has no attempt until a real learner takes it.
+    assert body["quiz_attempt_id"] is None
 
     dashboard_after = client.get(
         f"/api/v1/dashboard/{run_id}",
@@ -191,8 +193,10 @@ def test_generate_after_completed_assessment_creates_fresh_real_content(
     assert artifact_ids["curriculum_id"] == body["curriculum_id"]
     assert artifact_ids["critic_review_id"] == body["critic_review_id"]
     assert artifact_ids["evaluation_report_id"] == body["evaluation_report_id"]
+    # quiz_id resolves independently of any attempt (dashboard.py looks the
+    # quiz up directly by goal), while quiz_attempt_id stays honestly absent.
     assert artifact_ids["quiz_id"] == body["quiz_id"]
-    assert artifact_ids["quiz_attempt_id"] == body["quiz_attempt_id"]
+    assert "quiz_attempt_id" not in artifact_ids
     # Step 2: critic + evaluation are now real, derived from this workspace's
     # own knowledge map/curriculum (see test_critic_behavior.py for the
     # RAG-vocabulary-free unit check on the critic's own logic).
@@ -202,23 +206,22 @@ def test_generate_after_completed_assessment_creates_fresh_real_content(
     evaluation_summary = dashboard_after["evaluation_summary"]
     assert evaluation_summary is not None
     assert 0.0 <= evaluation_summary["overall_score"] <= 1.0
-    # The evaluation report is now built after the quiz and given the real
-    # quiz attempt, so its own artifact_ids should reference it.
+    # The evaluation report honestly carries no quiz_attempt_id either - no
+    # real attempt exists yet (Step 10; same honest-absence pattern already
+    # used for adaptation_event_id).
     evaluation_report = client.get(
         f"/api/v1/evaluations/{body['evaluation_report_id']}",
         headers=_auth_header(token),
     ).json()
-    assert evaluation_report["artifact_ids"]["quiz_attempt_id"] == body["quiz_attempt_id"]
-    # Rebuild-37: quiz is now real too, derived from this workspace's own
-    # curriculum (see test_quiz_behavior.py for the RAG-vocabulary-free unit
-    # check on the quiz agent's own logic).
-    quiz_summary = dashboard_after["quiz_summary"]
-    assert quiz_summary is not None
-    assert 0.0 <= quiz_summary["latest_score"] <= 1.0
-    assert isinstance(quiz_summary["weak_concepts"], list)
-    # Step 9: progress is now real too, built from the real quiz attempt (see
-    # test_progress_behavior.py for the RAG-vocabulary-free unit check on the
-    # progress agent's own logic).
+    assert "quiz_attempt_id" not in evaluation_report["artifact_ids"]
+    # Rebuild-37/Step 10: the quiz itself is still real, derived from this
+    # workspace's own curriculum (see test_quiz_behavior.py for the
+    # RAG-vocabulary-free unit check on the quiz agent's own logic), but its
+    # dashboard tile stays honestly empty until a real attempt exists.
+    assert dashboard_after["quiz_summary"] is None
+    # Step 9: progress is now real too, built honestly with no quiz attempt
+    # yet (see test_progress_behavior.py for the RAG-vocabulary-free unit
+    # check on the progress agent's own logic).
     progress_summary = dashboard_after["progress_summary"]
     assert progress_summary is not None
     assert 0 <= progress_summary["completion_percentage"] <= 100
@@ -253,10 +256,12 @@ def test_regenerating_reuses_the_same_quiz_id_instead_of_duplicating(
     first = client.post("/api/v1/me/workspace/generate", headers=_auth_header(token)).json()
     second = client.post("/api/v1/me/workspace/generate", headers=_auth_header(token)).json()
 
-    # create_or_replace semantics: the same goal's quiz/attempt IDs are
-    # reused and overwritten in place on regeneration, never duplicated.
+    # create_or_replace semantics: the same goal's quiz ID is reused and
+    # overwritten in place on regeneration, never duplicated. Neither call
+    # produces an attempt (Step 10).
     assert first["quiz_id"] == second["quiz_id"]
-    assert first["quiz_attempt_id"] == second["quiz_attempt_id"]
+    assert first["quiz_attempt_id"] is None
+    assert second["quiz_attempt_id"] is None
 
 
 def test_get_progress_returns_real_data_after_generate(auth_enabled_app: None) -> None:

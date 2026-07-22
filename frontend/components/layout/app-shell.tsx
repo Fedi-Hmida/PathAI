@@ -309,16 +309,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ) : (
             <SidebarLinkDisabled icon={Link2} label="Resources" open={open} reason="Not available yet" />
           )}
-          {quizId && quizAttemptId ? (
+          {quizId ? (
             <SidebarLink
-              href={`/quiz/${quizId}/attempts/${quizAttemptId}`}
+              href={
+                quizAttemptId
+                  ? `/quiz/${quizId}/attempts/${quizAttemptId}`
+                  : `/quiz/${quizId}/take`
+              }
               icon={HelpCircle}
               label="Quiz"
               active={section === "quiz"}
               open={open}
             />
           ) : (
-            <SidebarLinkDisabled icon={HelpCircle} label="Quiz" open={open} reason="Not available yet" />
+            <SidebarLinkDisabled
+              icon={HelpCircle}
+              label="Quiz"
+              open={open}
+              reason="Generate your curriculum to unlock the quiz"
+            />
           )}
           {criticReviewId ? (
             <SidebarLink

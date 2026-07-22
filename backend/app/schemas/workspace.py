@@ -37,12 +37,17 @@ class LLMRunBudgetSummary(BaseSchema):
 
 class WorkspaceGenerationResult(BaseSchema):
     """Pointer to the caller's freshly (re)generated knowledge map,
-    curriculum, critic review, evaluation report, and quiz + attempt."""
+    curriculum, critic review, evaluation report, and quiz.
+
+    ``quiz_attempt_id`` is honestly null until a real learner attempt exists
+    (Big_Audit Step 10): generation no longer fabricates one - see
+    ``POST /quizzes/{quiz_id}/attempts``.
+    """
 
     knowledge_map_id: KnowledgeMapId
     curriculum_id: CurriculumId
     critic_review_id: CriticReviewId
     evaluation_report_id: EvaluationReportId
     quiz_id: QuizId
-    quiz_attempt_id: AttemptId
+    quiz_attempt_id: AttemptId | None = None
     llm_budget_summary: LLMRunBudgetSummary | None = None
