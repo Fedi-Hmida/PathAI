@@ -9,6 +9,7 @@ from app.api.v1.dependencies import (
     AuthorizationDependency,
     CurrentUserOrNoneDependency,
     OrchestrationRunServiceDependency,
+    require_auth_disabled,
 )
 from app.core.settings import Settings, get_settings
 from app.schemas.enums import OrchestrationRunStatus
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/orchestration/runs", tags=["orchestration"])
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
 
 
-@router.post("", response_model=OrchestrationRunDTO)
+@router.post("", response_model=OrchestrationRunDTO, dependencies=[Depends(require_auth_disabled)])
 def trigger_orchestration_run(
     container: ApiContainerDependency,
     settings: SettingsDependency,

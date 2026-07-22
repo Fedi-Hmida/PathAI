@@ -1,34 +1,22 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, RefreshCw } from "lucide-react";
+import { AlertTriangle, ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { DEMO_RUN_ID } from "@/lib/types/orchestration";
 import type { OrchestrationRunDTO } from "@/lib/types/orchestration";
 
 type RunStatusFooterProps = {
-  runId: string;
   run: OrchestrationRunDTO | null;
   notFound: boolean;
-  triggering: boolean;
-  onTrigger: () => void;
 };
 
-export function RunStatusFooter({ runId, run, notFound, triggering, onTrigger }: RunStatusFooterProps) {
-  const isDemoRun = runId === DEMO_RUN_ID;
-
+export function RunStatusFooter({ run, notFound }: RunStatusFooterProps) {
   if (notFound) {
-    if (!isDemoRun) {
-      return <p className="text-muted-foreground text-sm">Run not found.</p>;
-    }
     return (
       <div className="flex flex-col items-start gap-3">
-        <p className="text-muted-foreground text-sm">
-          No run yet for the PathAI demo goal. This starts the canonical demo pipeline only
-          &mdash; the backend doesn&apos;t yet support triggering a run for a custom goal.
-        </p>
-        <Button size="lg" onClick={onTrigger} disabled={triggering}>
-          {triggering ? "Starting…" : "Run demo pipeline"}
-        </Button>
+        <p className="text-muted-foreground text-sm">Run not found.</p>
+        <Link href="/workspace" className="text-sm underline underline-offset-4">
+          Create a workspace to get started
+        </Link>
       </div>
     );
   }
@@ -57,12 +45,6 @@ export function RunStatusFooter({ runId, run, notFound, triggering, onTrigger }:
             <ArrowRight className="size-4" />
           </Link>
         </Button>
-        {isDemoRun ? (
-          <Button size="lg" variant="secondary" onClick={onTrigger} disabled={triggering}>
-            <RefreshCw className="size-4" />
-            {triggering ? "Starting…" : "Re-run demo pipeline"}
-          </Button>
-        ) : null}
       </div>
     );
   }
@@ -74,20 +56,12 @@ export function RunStatusFooter({ runId, run, notFound, triggering, onTrigger }:
         <p className="text-foreground text-[13.5px] leading-relaxed">
           {lastError?.message ?? "This run failed."}
         </p>
-        <div className="flex flex-wrap items-center gap-4">
-          {isDemoRun ? (
-            <Button variant="destructive" onClick={onTrigger} disabled={triggering}>
-              <RefreshCw className="size-4" />
-              {triggering ? "Retrying…" : "Retry"}
-            </Button>
-          ) : null}
-          <Link
-            href={`/dashboard/${run.run_id}`}
-            className="text-muted-foreground text-sm underline underline-offset-4"
-          >
-            View dashboard
-          </Link>
-        </div>
+        <Link
+          href={`/dashboard/${run.run_id}`}
+          className="text-muted-foreground text-sm underline underline-offset-4"
+        >
+          View dashboard
+        </Link>
       </div>
     );
   }

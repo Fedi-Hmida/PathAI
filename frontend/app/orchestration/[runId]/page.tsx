@@ -11,11 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/client";
-import {
-  getOrchestrationRun,
-  getOrchestrationStatus,
-  triggerOrchestrationRun,
-} from "@/lib/api/orchestration";
+import { getOrchestrationRun, getOrchestrationStatus } from "@/lib/api/orchestration";
 import { cn } from "@/lib/utils";
 import type {
   OrchestrationRunDTO,
@@ -66,14 +62,12 @@ function OrchestrationRunView() {
   const runId = params.runId;
   const [loadedRunId, setLoadedRunId] = React.useState(runId);
   const [state, setState] = React.useState<LoadState>({ kind: "loading" });
-  const [triggering, setTriggering] = React.useState(false);
 
   // Reset to loading during render when runId changes, same pattern as the
   // Dashboard page (React's documented way to reset state on a changed param).
   if (runId !== loadedRunId) {
     setLoadedRunId(runId);
     setState({ kind: "loading" });
-    setTriggering(false);
   }
 
   const pollTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -176,26 +170,6 @@ function OrchestrationRunView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
 
-  const handleTrigger = React.useCallback(() => {
-    setTriggering(true);
-    const postPromise = triggerOrchestrationRun();
-    startPolling(runId);
-    postPromise
-      .then((run) => {
-        setState({ kind: "ready", run });
-        if (isTerminalRunStatus(run.status)) {
-          stopPolling();
-        }
-      })
-      .catch((error: unknown) => {
-        stopPolling();
-        const message =
-          error instanceof ApiError ? error.message : "Unable to reach the PathAI backend.";
-        setState({ kind: "error", message });
-      })
-      .finally(() => setTriggering(false));
-  }, [runId, startPolling, stopPolling]);
-
   if (state.kind === "loading") {
     return <OrchestrationSkeleton />;
   }
@@ -245,13 +219,7 @@ function OrchestrationRunView() {
         </div>
       ) : null}
 
-      <RunStatusFooter
-        runId={runId}
-        run={run}
-        notFound={notFound}
-        triggering={triggering}
-        onTrigger={handleTrigger}
-      />
+      <RunStatusFooter run={run} notFound={notFound} />
     </div>
   );
 }

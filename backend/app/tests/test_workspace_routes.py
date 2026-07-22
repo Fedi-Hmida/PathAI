@@ -156,6 +156,14 @@ def test_demo_load_fixtures_is_disabled_while_auth_enabled(auth_enabled_app: Non
     assert response.status_code == 404
 
 
+def test_orchestration_run_trigger_is_disabled_while_auth_enabled(auth_enabled_app: None) -> None:
+    client = TestClient(create_app())
+
+    response = client.post("/api/v1/orchestration/runs")
+
+    assert response.status_code == 404
+
+
 def test_workspace_routes_are_hidden_when_auth_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PATHAI_ENABLE_AUTH", "false")
     get_settings.cache_clear()

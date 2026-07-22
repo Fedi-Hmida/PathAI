@@ -2,10 +2,6 @@ import type { ExecutionMode, OrchestrationStatus } from "@/lib/types/dashboard";
 
 export type { ExecutionMode, OrchestrationStatus };
 
-// Mirrors backend/app/fixtures/canonical_demo.py's RUN_ID — the only run_id
-// POST /orchestration/runs ever produces (see app/api/v1/orchestration.py).
-export const DEMO_RUN_ID = "run_demo_rag";
-
 // Mirrors backend/app/orchestration/nodes.py's NODE_SEQUENCE.
 export const NODE_SEQUENCE = [
   "initialize_run",
