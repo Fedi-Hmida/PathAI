@@ -55,6 +55,7 @@ def test_orchestration_runs_progress_quiz_and_adaptation_behavior() -> None:
 def test_quiz_agent_validation_failure_marks_workflow_failed_safely() -> None:
     container = ApiServiceContainer()
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

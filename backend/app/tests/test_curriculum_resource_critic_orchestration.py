@@ -58,6 +58,7 @@ def test_orchestration_deepens_curriculum_resource_and_critic_steps() -> None:
 def test_controlled_critic_failure_marks_workflow_failed_safely() -> None:
     container = ApiServiceContainer()
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

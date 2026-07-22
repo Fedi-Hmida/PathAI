@@ -36,6 +36,7 @@ def test_agent_bundle_defaults_to_deterministic_curriculum_agent() -> None:
     """Default bundle must use MockCurriculumAgent, not an LLM-backed agent."""
     container = ApiServiceContainer()
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,
@@ -61,6 +62,7 @@ def test_llm_curriculum_mode_requires_injected_agent() -> None:
 
     with pytest.raises(ValueError, match="requires an injected curriculum agent"):
         build_mock_agent_service_bundle(
+            goals=container.goal_service,
             assessments=container.assessment_service,
             knowledge_maps=container.knowledge_map_service,
             curricula=container.curriculum_service,
@@ -86,6 +88,7 @@ def test_agent_bundle_can_switch_curriculum_to_injected_llm_agent() -> None:
     )
 
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

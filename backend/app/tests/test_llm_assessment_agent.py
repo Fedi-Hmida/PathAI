@@ -75,7 +75,7 @@ def test_llm_assessment_service_persists_validated_question_output() -> None:
         client=_fake_assessment_client(payload),
         fallback_agent=MockAssessorAgent(),
     )
-    service = AssessmentAgentService(agent, container.assessment_service)
+    service = AssessmentAgentService(agent, container.assessment_service, container.goal_service)
 
     goal = container.goal_service.create(demo.LEARNING_GOAL)
     output = service._generate_question(
@@ -111,6 +111,7 @@ def test_agent_bundle_can_switch_assessment_to_injected_llm_agent() -> None:
     )
 
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,
@@ -133,6 +134,7 @@ def test_agent_bundle_defaults_to_deterministic_assessment_agent() -> None:
     container = ApiServiceContainer()
 
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

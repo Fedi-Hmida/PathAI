@@ -17,6 +17,7 @@ from app.schemas.enums import AssessmentStatus
 
 def _build_assessment_agent_service(container: ApiServiceContainer) -> AssessmentAgentService:
     return build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

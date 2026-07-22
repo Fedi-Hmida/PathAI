@@ -8,6 +8,7 @@ from app.fixtures import canonical_demo as demo
 def test_agent_services_call_mocks_and_persist_through_domain_services() -> None:
     container = ApiServiceContainer()
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

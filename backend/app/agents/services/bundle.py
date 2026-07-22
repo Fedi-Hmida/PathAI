@@ -30,6 +30,7 @@ from app.services import (
     CriticService,
     CurriculumService,
     EvaluationService,
+    GoalService,
     KnowledgeMapService,
     ProgressService,
     QuizService,
@@ -80,6 +81,7 @@ class AgentIntegrationSwitches:
 
 def build_mock_agent_service_bundle(
     *,
+    goals: GoalService,
     assessments: AssessmentService,
     knowledge_maps: KnowledgeMapService,
     curricula: CurriculumService,
@@ -100,6 +102,7 @@ def build_mock_agent_service_bundle(
         assessment=AssessmentAgentService(
             _select_assessment_agent(selected_switches, assessment_agent),
             assessments,
+            goals,
         ),
         knowledge_map=KnowledgeMapAgentService(
             _select_knowledge_map_agent(selected_switches, knowledge_map_agent),

@@ -51,6 +51,7 @@ def test_resource_attachment_covers_curriculum_topics_with_diversity() -> None:
 def test_resource_agent_service_persists_generated_attachments() -> None:
     container = ApiServiceContainer()
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

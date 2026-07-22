@@ -13,6 +13,7 @@ from app.schemas.enums import NodeResultStatus, OrchestrationRunStatus, Orchestr
 def test_controlled_agent_failure_marks_workflow_failed_safely() -> None:
     container = ApiServiceContainer()
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

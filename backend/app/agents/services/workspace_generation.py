@@ -13,7 +13,7 @@ from app.fixtures import canonical_demo as demo
 from app.schemas.assessment import AssessmentSessionDTO
 from app.schemas.critic import CriticReviewDTO
 from app.schemas.curriculum import CurriculumDTO
-from app.schemas.enums import AssessmentStatus, ProgressStatus, TopicProgressStatus
+from app.schemas.enums import AssessmentStatus, GoalStatus, ProgressStatus, TopicProgressStatus
 from app.schemas.evaluation import EvaluationReportDTO
 from app.schemas.goal import LearningGoalDTO
 from app.schemas.knowledge_map import KnowledgeMapDTO
@@ -25,6 +25,7 @@ from app.services import (
     CriticService,
     CurriculumService,
     EvaluationService,
+    GoalService,
     KnowledgeMapService,
     ProgressService,
     QuizService,
@@ -83,6 +84,7 @@ class WorkspaceGenerationService:
     evaluations: EvaluationService
     quizzes: QuizService
     progress: ProgressService
+    goals: GoalService
     llm_observer: RunBudgetSummaryProvider | None = None
 
     def generate(self, goal: LearningGoalDTO) -> GeneratedWorkspaceArtifacts:
@@ -158,6 +160,7 @@ class WorkspaceGenerationService:
             None,
             evaluation_report_id=evaluation_report_id,
         )
+        self.goals.update_status(goal.goal_id, GoalStatus.CURRICULUM_GENERATED)
         return GeneratedWorkspaceArtifacts(
             knowledge_map=knowledge_map,
             curriculum=curriculum,

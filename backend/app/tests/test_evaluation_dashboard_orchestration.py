@@ -44,6 +44,7 @@ def test_orchestration_generates_evaluation_dashboard_and_reporting_summary() ->
 def test_evaluation_validation_failure_marks_workflow_failed_safely() -> None:
     container = ApiServiceContainer()
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

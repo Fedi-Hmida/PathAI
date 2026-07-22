@@ -67,6 +67,7 @@ def test_agent_bundle_can_switch_knowledge_map_to_injected_llm_agent() -> None:
     )
 
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

@@ -153,6 +153,7 @@ def test_end_to_end_fake_provider_bundle_produces_valid_knowledge_map_output() -
     fake_client.payloads[KnowledgeMapAgentOutput.__name__] = _fake_knowledge_map_payload()
 
     bundle = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

@@ -139,6 +139,7 @@ def _build_default_agent_service_bundle(
     switches = resolve_agent_integration_switches(settings)
     injected = build_injected_agents(switches, settings)
     return build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

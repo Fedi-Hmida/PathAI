@@ -57,6 +57,7 @@ def test_curriculum_generation_prioritizes_weak_and_missing_concepts() -> None:
 def test_curriculum_agent_service_persists_generated_curriculum() -> None:
     container = ApiServiceContainer()
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

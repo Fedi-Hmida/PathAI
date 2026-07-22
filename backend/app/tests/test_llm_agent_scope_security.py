@@ -44,6 +44,7 @@ def test_llm_agent_path_does_not_put_raw_llm_data_in_workflow_state() -> None:
         fallback_agent=MockKnowledgeMapAgent(),
     )
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

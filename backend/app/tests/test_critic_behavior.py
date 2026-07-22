@@ -211,6 +211,7 @@ def test_critic_review_detects_overload_and_missing_resources() -> None:
 def test_critic_agent_service_persists_review() -> None:
     container = ApiServiceContainer()
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

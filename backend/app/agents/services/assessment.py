@@ -24,9 +24,9 @@ from app.schemas.assessment import (
     AssessmentSessionDTO,
     ConceptEvidence,
 )
-from app.schemas.enums import AssessmentStatus
+from app.schemas.enums import AssessmentStatus, GoalStatus
 from app.schemas.goal import LearningGoalDTO
-from app.services import AssessmentService
+from app.services import AssessmentService, GoalService
 
 QUESTION_LIMIT = 5
 
@@ -54,6 +54,7 @@ class AssessmentQuestionMismatchError(Exception):
 class AssessmentAgentService:
     agent: AssessorAgent
     assessments: AssessmentService
+    goals: GoalService
 
     def run_diagnostic(self, goal: LearningGoalDTO) -> AssessmentSessionDTO:
         target_concepts = diagnostic_focus_for_goal(goal.goal_text, goal.learner_profile)
@@ -101,12 +102,14 @@ class AssessmentAgentService:
             prior_answers=[],
         )
         session = build_started_session(goal=goal, question=question_output.question)
-        return create_or_get(
+        saved_session = create_or_get(
             create=self.assessments.create_session,
             get=self.assessments.get_session_by_id,
             record=session,
             record_id=session.assessment_session_id,
         )
+        self.goals.update_status(goal.goal_id, GoalStatus.ASSESSMENT_STARTED)
+        return saved_session
 
     def submit_answer(
         self,

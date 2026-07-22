@@ -19,6 +19,7 @@ from app.schemas.knowledge_map import KnowledgeMapAgentInput
 def test_agent_bundle_defaults_to_deterministic_knowledge_map_agent() -> None:
     container = ApiServiceContainer()
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,
@@ -38,6 +39,7 @@ def test_llm_knowledge_map_mode_requires_injected_agent() -> None:
 
     with pytest.raises(ValueError, match="requires an injected knowledge-map agent"):
         build_mock_agent_service_bundle(
+            goals=container.goal_service,
             assessments=container.assessment_service,
             knowledge_maps=container.knowledge_map_service,
             curricula=container.curriculum_service,

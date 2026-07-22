@@ -22,6 +22,7 @@ _RAG_TOKEN_PATTERN = re.compile(
 def test_assessment_diagnostic_is_goal_aware_and_evidence_driven() -> None:
     container = ApiServiceContainer()
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,
@@ -71,6 +72,7 @@ def test_assessment_diagnostic_is_goal_aware_and_evidence_driven() -> None:
 def test_assessment_answers_are_scored_and_persisted_through_service() -> None:
     container = ApiServiceContainer()
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,
@@ -102,6 +104,7 @@ def test_assessment_answers_are_scored_and_persisted_through_service() -> None:
 def test_full_turn_by_turn_diagnostic_for_a_non_rag_goal_contains_no_rag_vocabulary() -> None:
     container = ApiServiceContainer()
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

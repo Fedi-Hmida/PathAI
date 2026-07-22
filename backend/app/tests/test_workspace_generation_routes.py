@@ -63,6 +63,53 @@ def _complete_assessment(client: TestClient, token: str) -> None:
             question_id = next_question["question_id"]
 
 
+def _goal_id_for_run(client: TestClient, token: str, run_id: str) -> str:
+    dashboard = client.get(f"/api/v1/dashboard/{run_id}", headers=_auth_header(token)).json()
+    return dashboard["goal_summary"]["goal_id"]  # type: ignore[no-any-return]
+
+
+def _goal_status(client: TestClient, token: str, goal_id: str) -> str:
+    # The same route frontend/app/goal/[goalId]/page.tsx reads goal.status
+    # from, so this proves the lifecycle transition is observable end-to-end
+    # through the real API, not just at the service layer in isolation.
+    response = client.get(f"/api/v1/goals/{goal_id}", headers=_auth_header(token))
+    assert response.status_code == 200
+    return response.json()["status"]  # type: ignore[no-any-return]
+
+
+def test_goal_status_advances_through_its_real_lifecycle(auth_enabled_app: None) -> None:
+    client = TestClient(create_app())
+    token = _register(client, "learner@example.com")
+    goal_text = "Learn classical guitar for a wedding performance"
+    run_id = _create_workspace(client, token, goal_text=goal_text).json()["run_id"]
+    goal_id = _goal_id_for_run(client, token, run_id)
+
+    assert _goal_status(client, token, goal_id) == "created"
+
+    start_response = client.post("/api/v1/me/assessment/start", headers=_auth_header(token))
+    assert start_response.status_code == 201
+    assert _goal_status(client, token, goal_id) == "assessment_started"
+
+    _complete_assessment(client, token)
+    assert _goal_status(client, token, goal_id) == "assessment_started"
+
+    generate_response = client.post(
+        "/api/v1/me/workspace/generate",
+        headers=_auth_header(token),
+    )
+    assert generate_response.status_code == 200
+    assert _goal_status(client, token, goal_id) == "curriculum_generated"
+
+    # Regeneration fires the same transition again - a real, current fact
+    # each time - and must not regress to an earlier status.
+    second_generate_response = client.post(
+        "/api/v1/me/workspace/generate",
+        headers=_auth_header(token),
+    )
+    assert second_generate_response.status_code == 200
+    assert _goal_status(client, token, goal_id) == "curriculum_generated"
+
+
 def test_generate_without_a_workspace_is_not_found(auth_enabled_app: None) -> None:
     client = TestClient(create_app())
     token = _register(client, "learner@example.com")

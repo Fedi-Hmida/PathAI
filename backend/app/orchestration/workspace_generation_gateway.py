@@ -36,6 +36,7 @@ def build_workspace_generation_service(
     switches = resolve_agent_integration_switches(settings)
     injected = build_injected_agents(switches, settings)
     bundle = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,
@@ -64,5 +65,6 @@ def build_workspace_generation_service(
         evaluations=container.evaluation_service,
         quizzes=container.quiz_service,
         progress=container.progress_service,
+        goals=container.goal_service,
         llm_observer=injected.observer,
     )

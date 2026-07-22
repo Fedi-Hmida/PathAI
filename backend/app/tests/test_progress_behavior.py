@@ -48,6 +48,7 @@ def test_progress_marks_low_quiz_topics_as_stuck_and_adaptation_needed() -> None
 def test_progress_agent_service_persists_generated_progress_state() -> None:
     container = ApiServiceContainer()
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,

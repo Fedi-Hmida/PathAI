@@ -14,6 +14,7 @@ from app.schemas.knowledge_map import KnowledgeMapAgentInput
 def test_knowledge_map_is_generated_from_assessment_evidence() -> None:
     container = ApiServiceContainer()
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,
@@ -53,6 +54,7 @@ def test_knowledge_map_is_generated_from_assessment_evidence() -> None:
 def test_knowledge_map_concepts_are_schema_valid_and_curriculum_ready() -> None:
     container = ApiServiceContainer()
     agents = build_mock_agent_service_bundle(
+        goals=container.goal_service,
         assessments=container.assessment_service,
         knowledge_maps=container.knowledge_map_service,
         curricula=container.curriculum_service,
