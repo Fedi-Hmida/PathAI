@@ -25,7 +25,7 @@ from app.schemas.knowledge_map import ConceptMasteryDTO, KnowledgeMapDTO
 from app.schemas.resource import ResourceAgentInput, ResourceAttachmentDTO
 
 _RAG_TOKEN_PATTERN = re.compile(
-    r"\b(rag|retrieval|vector[ _]search|embedding|chunking)\b",
+    r"\b(rag|retrieval|reranking|chunking|embeddings?|vector[_ ]search|hallucination)\b",
     re.IGNORECASE,
 )
 

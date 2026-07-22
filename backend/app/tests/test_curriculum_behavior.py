@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from app.agents.mock import MockCurriculumAgent
 from app.agents.services import build_mock_agent_service_bundle
 from app.api.v1.dependencies import ApiServiceContainer
@@ -7,6 +9,17 @@ from app.fixtures import canonical_demo as demo
 from app.schemas.curriculum import CurriculumAgentInput, CurriculumAgentOutput
 from app.schemas.enums import ConceptClassification
 from app.schemas.knowledge_map import ConceptMasteryDTO
+
+_RAG_TOKEN_PATTERN = re.compile(
+    r"\b(rag|retrieval|reranking|chunking|embeddings?|vector[_ ]search|hallucination)\b",
+    re.IGNORECASE,
+)
+
+
+def _assert_no_rag_vocabulary(*fragments: str) -> None:
+    blob = " ".join(fragments)
+    match = _RAG_TOKEN_PATTERN.search(blob)
+    assert match is None, f"RAG vocabulary leaked into non-RAG curriculum output: {match!r}"
 
 
 def test_curriculum_generation_prioritizes_weak_and_missing_concepts() -> None:
@@ -110,10 +123,7 @@ def test_curriculum_for_a_non_rag_goal_contains_no_rag_content() -> None:
 
     assert CurriculumAgentOutput.model_validate(output) == output
     blob = output.model_dump_json().lower()
-    rag_terms = ("rag", "retrieval", "chunking", "embeddings", "vector_search", "reranking")
-    for rag_term in rag_terms:
-        message = f"unexpected RAG term leaked into non-RAG curriculum: {rag_term}"
-        assert rag_term not in blob, message
+    _assert_no_rag_vocabulary(blob)
     assert "guitar" in blob or "wedding" in blob
 
 
