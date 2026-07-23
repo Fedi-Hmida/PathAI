@@ -17,6 +17,7 @@ export function SelfRatingScale({ value, onChange, disabled }: SelfRatingScalePr
           <button
             key={rating}
             type="button"
+            data-testid={`self-rating-${rating}`}
             disabled={disabled}
             onClick={() => onChange(rating)}
             aria-pressed={active}

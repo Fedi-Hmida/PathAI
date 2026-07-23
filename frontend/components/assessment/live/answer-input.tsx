@@ -35,6 +35,7 @@ export function AnswerInput({
             <button
               key={option}
               type="button"
+              data-testid="assessment-option"
               disabled={disabled}
               onClick={() => onSelectOption(option)}
               className={cn(
