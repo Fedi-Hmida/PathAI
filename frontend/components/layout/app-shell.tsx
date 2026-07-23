@@ -115,7 +115,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const ownRunId = needsOwnWorkspace ? ownWorkspaceRunId : null;
 
   // Each caller has their own run, resolved via their workspace rather than
-  // a fixed ID.
+  // a fixed ID. Keyed on `pathname` as well as `needsOwnWorkspace` because a
+  // user who registers and *then* creates their workspace does so in one
+  // continuous SPA session: `needsOwnWorkspace` flips true once at
+  // authentication (before any workspace exists), and workspace creation
+  // navigates via `router.replace` without remounting this persistent layout.
+  // Re-resolving on each navigation makes the sidebar pick up the newly
+  // created (or reset) workspace as soon as the user moves to the next screen,
+  // instead of staying stale until a full manual page reload.
   React.useEffect(() => {
     if (!needsOwnWorkspace) {
       return;
@@ -135,19 +142,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [needsOwnWorkspace]);
+  }, [needsOwnWorkspace, pathname]);
 
   // Sidebar links for the drill-down screens (Knowledge Map, Assessment,
   // Curriculum) need real artifact IDs, not just the run ID — there is no
-  // run-listing screen, so this fetches the resolved run's dashboard once to
+  // run-listing screen, so this fetches the resolved run's dashboard to
   // resolve them. Until this resolves (or an ID is missing), those links
-  // render inactive instead of pointing at a 404.
+  // render inactive instead of pointing at a 404. Only the null-out on a
+  // *changed* run is synchronous here — the reset shouldn't flash the sidebar
+  // empty on same-run navigations.
   const [loadedArtifactsForRunId, setLoadedArtifactsForRunId] = React.useState<string | null>(null);
   if (ownRunId !== loadedArtifactsForRunId) {
     setLoadedArtifactsForRunId(ownRunId);
     setArtifactIds(null);
   }
 
+  // Re-fetched on navigation (keyed on `pathname`) as well as on the resolved
+  // run, because the artifact IDs come into existence *after* generate() —
+  // resolving them once when the run first appears (which happens during the
+  // pre-generate assessment phase) would leave the sidebar showing only the
+  // goal link, with Knowledge Map / Curriculum / Critic / etc. stuck inactive
+  // until a manual reload. Refreshing on each navigation to the freshly
+  // generated dashboard picks up the now-complete set without a remount.
   React.useEffect(() => {
     if (!ownRunId) {
       return;
@@ -166,7 +182,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [ownRunId]);
+  }, [ownRunId, pathname]);
 
   const [section, pathRunId] = pathname.split("/").filter(Boolean);
   // Section links preserve whatever runId is in the current URL when on a

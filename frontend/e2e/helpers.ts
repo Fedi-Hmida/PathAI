@@ -70,18 +70,11 @@ export async function completeAssessmentViaUi(page: Page, totalQuestions = 5): P
 export async function generateWorkspaceViaUi(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Generate my learning path" }).click();
   await page.waitForURL("**/dashboard/**", { timeout: 30_000 });
-  // Real bug surfaced by writing this test (reported in the Step 13 summary,
-  // not silently fixed - out of this step's scope): AppShell resolves the
-  // caller's own workspace/run via `getMyWorkspace()` exactly once, in an
-  // effect gated on `[needsOwnWorkspace]` - which flips true immediately at
-  // registration, before a workspace exists yet. A user who creates their
-  // workspace afterward in the SAME session (the normal register -> create
-  // -> assess -> generate flow, exercised end-to-end here for the first
-  // time) never sees the sidebar's Goal/Knowledge Map/Curriculum/etc links
-  // activate, because that effect never re-fires. A full reload forces a
-  // fresh mount, which re-resolves it correctly - the same workaround a real
-  // user hitting this would need today.
-  await page.reload();
+  // No page.reload() workaround here anymore. The AppShell sidebar defect that
+  // required it (Big_Audit Step 13 finding) is fixed in Step 14: AppShell now
+  // re-resolves the caller's workspace on navigation, so landing on the
+  // dashboard after generate() activates the real sidebar links on its own -
+  // exactly as a real first-time user experiences it.
 }
 
 // Drives the real quiz-taking UI (radio select -> Next Question -> ... ->
