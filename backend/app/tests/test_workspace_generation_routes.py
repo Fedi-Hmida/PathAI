@@ -226,9 +226,95 @@ def test_generate_after_completed_assessment_creates_fresh_real_content(
     assert progress_summary is not None
     assert 0 <= progress_summary["completion_percentage"] <= 100
     assert artifact_ids["progress_state_id"]
-    # The remaining two tiles stay honestly empty - future phase.
-    assert dashboard_after["resources_summary"]["total_attached"] == 0
+    # Step 12: resources are now real too - this goal's curriculum collapses
+    # to the deterministic fallback topic, but the corpus carries curated
+    # guitar entries for exactly this goal (see
+    # test_workspace_generate_persists_real_resource_attachments below for
+    # the full proof). Adaptation stays honestly empty - its own future step.
+    assert dashboard_after["resources_summary"]["total_attached"] > 0
     assert dashboard_after["adaptation_summary"]["recent_events"] == []
+
+
+def test_workspace_generate_persists_real_resource_attachments(auth_enabled_app: None) -> None:
+    """Big_Audit Step 12: generate() now wires `ResourceAgentService.attach()`
+    for real, and the persisted attachments are reachable end-to-end through
+    the real API - GET /resources/by-curriculum/{id} and the dashboard's
+    resources summary - for a real, non-RAG goal matched against the curated
+    corpus additions."""
+    client = TestClient(create_app())
+    token = _register(client, "learner@example.com")
+    goal_text = "Learn classical guitar for a wedding performance"
+    run_id = _create_workspace(client, token, goal_text=goal_text).json()["run_id"]
+    _complete_assessment(client, token)
+
+    generate_response = client.post(
+        "/api/v1/me/workspace/generate",
+        headers=_auth_header(token),
+    )
+    assert generate_response.status_code == 200
+    curriculum_id = generate_response.json()["curriculum_id"]
+
+    attachments_response = client.get(
+        f"/api/v1/resources/by-curriculum/{curriculum_id}",
+        headers=_auth_header(token),
+    )
+    assert attachments_response.status_code == 200
+    attachments = attachments_response.json()
+    assert len(attachments) > 0
+    assert all(attachment["curriculum_id"] == curriculum_id for attachment in attachments)
+    resource_ids = {attachment["resource_id"] for attachment in attachments}
+    assert "resource_guitar_fundamentals" in resource_ids
+    # No RAG-corpus content leaked into this non-RAG goal's real matches.
+    assert resource_ids.isdisjoint({"resource_rag_intro", "resource_retrieval_metrics"})
+
+    dashboard = client.get(f"/api/v1/dashboard/{run_id}", headers=_auth_header(token)).json()
+    assert dashboard["resources_summary"]["total_attached"] == len(attachments)
+
+    # Regeneration overwrites the same goal-scoped attachment records rather
+    # than duplicating them (create_or_replace, mirroring the
+    # Progress/Critic regeneration-freshness fix).
+    second_generate_response = client.post(
+        "/api/v1/me/workspace/generate",
+        headers=_auth_header(token),
+    )
+    assert second_generate_response.status_code == 200
+    second_attachments = client.get(
+        f"/api/v1/resources/by-curriculum/{curriculum_id}",
+        headers=_auth_header(token),
+    ).json()
+    assert {a["attachment_id"] for a in second_attachments} == {
+        a["attachment_id"] for a in attachments
+    }
+
+
+def test_workspace_generate_leaves_a_non_matching_goal_honestly_empty(
+    auth_enabled_app: None,
+) -> None:
+    """The corpus-diversity decision (Big_Audit Step 12) is honestly narrow,
+    not comprehensive: a goal with nothing curated for it gets zero
+    attachments, never a fabricated placeholder match."""
+    client = TestClient(create_app())
+    token = _register(client, "learner@example.com")
+    goal_text = "Learn Mandarin calligraphy for a museum exhibit"
+    run_id = _create_workspace(client, token, goal_text=goal_text).json()["run_id"]
+    _complete_assessment(client, token)
+
+    generate_response = client.post(
+        "/api/v1/me/workspace/generate",
+        headers=_auth_header(token),
+    )
+    assert generate_response.status_code == 200
+    curriculum_id = generate_response.json()["curriculum_id"]
+
+    attachments_response = client.get(
+        f"/api/v1/resources/by-curriculum/{curriculum_id}",
+        headers=_auth_header(token),
+    )
+    assert attachments_response.status_code == 200
+    assert attachments_response.json() == []
+
+    dashboard = client.get(f"/api/v1/dashboard/{run_id}", headers=_auth_header(token)).json()
+    assert dashboard["resources_summary"]["total_attached"] == 0
 
 
 def test_generate_is_callable_again_and_still_succeeds(auth_enabled_app: None) -> None:

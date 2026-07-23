@@ -55,6 +55,7 @@ def build_workspace_generation_service(
     return WorkspaceGenerationService(
         knowledge_map_agent=bundle.knowledge_map,
         curriculum_agent=bundle.curriculum,
+        resource_agent=bundle.resource,
         critic_agent=bundle.critic,
         evaluation_agent=bundle.evaluation,
         quiz_agent=bundle.quiz,

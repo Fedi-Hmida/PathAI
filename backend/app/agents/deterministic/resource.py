@@ -99,7 +99,7 @@ def _attachment_for_match(
 ) -> ResourceAttachmentDTO:
     resource = match.resource
     return ResourceAttachmentDTO(
-        attachment_id=_attachment_id(topic, resource),
+        attachment_id=_attachment_id(payload, topic, resource),
         goal_id=payload.curriculum.goal_id,
         curriculum_id=payload.curriculum.curriculum_id,
         topic_id=topic.topic_id,
@@ -164,10 +164,19 @@ def _selection_reason(topic: CurriculumTopicDTO, match: ResourceMatch) -> str:
     )
 
 
-def _attachment_id(topic: CurriculumTopicDTO, resource: ResourceDTO) -> str:
+def _attachment_id(
+    payload: ResourceAgentInput,
+    topic: CurriculumTopicDTO,
+    resource: ResourceDTO,
+) -> str:
+    # Goal-scoped: topic_id + resource_id alone collide across two different
+    # goals that match the same corpus resource for the same topic - a real
+    # risk since every non-RAG deterministic curriculum collapses to the same
+    # fixed fallback topic (curriculum.py's `_generic_fallback_topic`).
+    goal_token = payload.curriculum.goal_id.removeprefix("goal_")
     topic_token = topic.topic_id.removeprefix("topic_")
     resource_token = resource.resource_id.removeprefix("resource_")
-    return f"attach_{topic_token}_{resource_token}"[:127]
+    return f"attach_{goal_token}_{topic_token}_{resource_token}"[:127]
 
 
 def _curriculum_topics(payload: ResourceAgentInput) -> list[CurriculumTopicDTO]:

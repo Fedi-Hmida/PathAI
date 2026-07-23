@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.agents.contracts import ResourceAgent
-from app.agents.services.common import create_or_get, validate_agent_output
+from app.agents.services.common import create_or_get, create_or_replace, validate_agent_output
 from app.fixtures import canonical_demo as demo
 from app.schemas.curriculum import CurriculumDTO
 from app.schemas.knowledge_map import KnowledgeMapDTO
@@ -41,12 +41,16 @@ class ResourceAgentService:
             schema=ResourceAgentOutput,
             payload=self.agent.attach_resources(payload),
         )
+        # Each attachment's ID is now goal+topic+resource-scoped
+        # (`deterministic/resource.py::_attachment_id`), so a repeat call for
+        # the same goal recomputes the same IDs - overwrite in place with
+        # create_or_replace rather than keeping a stale create_or_get hit, the
+        # same regeneration-freshness fix already applied to Progress/Critic.
         return [
-            create_or_get(
+            create_or_replace(
                 create=self.resources.create_attachment,
-                get=self.resources.get_attachment_by_id,
+                save=self.resources.save_attachment,
                 record=attachment,
-                record_id=attachment.attachment_id,
             )
             for attachment in output.attachments
         ]

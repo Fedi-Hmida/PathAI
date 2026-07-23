@@ -522,6 +522,90 @@ RESOURCE_CORPUS = [
         created_at=NOW,
         updated_at=NOW,
     ),
+    # Big_Audit Step 12: the corpus above is entirely RAG/NLP-flavored, so a
+    # non-RAG goal's deterministic curriculum (which collapses to the generic
+    # fallback topic - see `deterministic/curriculum.py::_generic_fallback_
+    # topic`) never had anything real to match against. These four entries
+    # are genuinely real, stable, widely-known reference pages (not invented
+    # sources), covering two of the non-RAG goals already exercised elsewhere
+    # in this project's tests (`test_workspace_generation_routes.py`'s
+    # "classical guitar" goal, `test_workspace_routes.py`'s "watercolor
+    # painting" goal), so the resource-matching algorithm has something
+    # honest to find for a non-RAG learner too.
+    ResourceDTO(
+        resource_id="resource_guitar_fundamentals",
+        title="Classical guitar",
+        resource_type=ResourceType.ARTICLE,
+        source_name="Wikipedia",
+        url="https://en.wikipedia.org/wiki/Classical_guitar",
+        topic_tags=["guitar", "classical", "music"],
+        concept_ids=["guitar_fundamentals"],
+        difficulty=DifficultyLevel.BEGINNER,
+        estimated_minutes=20,
+        quality_score=0.8,
+        license_note="Public reference (Wikipedia, CC BY-SA 4.0).",
+        status=ResourceStatus.ACTIVE,
+        summary=(
+            "An overview of the classical guitar's history, construction, "
+            "and playing technique."
+        ),
+        created_at=NOW,
+        updated_at=NOW,
+    ),
+    ResourceDTO(
+        resource_id="resource_guitar_tuning_reference",
+        title="Guitar tuning",
+        resource_type=ResourceType.DOCUMENTATION,
+        source_name="Wikipedia",
+        url="https://en.wikipedia.org/wiki/Guitar_tuning",
+        topic_tags=["guitar", "tuning"],
+        concept_ids=["guitar_tuning"],
+        difficulty=DifficultyLevel.BEGINNER,
+        estimated_minutes=15,
+        quality_score=0.78,
+        license_note="Public reference (Wikipedia, CC BY-SA 4.0).",
+        status=ResourceStatus.ACTIVE,
+        summary=(
+            "A reference on standard and alternate guitar tunings and the "
+            "tradeoffs between them."
+        ),
+        created_at=NOW,
+        updated_at=NOW,
+    ),
+    ResourceDTO(
+        resource_id="resource_watercolor_fundamentals",
+        title="Watercolor painting",
+        resource_type=ResourceType.ARTICLE,
+        source_name="Wikipedia",
+        url="https://en.wikipedia.org/wiki/Watercolor_painting",
+        topic_tags=["watercolor", "painting", "art"],
+        concept_ids=["watercolor_fundamentals"],
+        difficulty=DifficultyLevel.BEGINNER,
+        estimated_minutes=20,
+        quality_score=0.8,
+        license_note="Public reference (Wikipedia, CC BY-SA 4.0).",
+        status=ResourceStatus.ACTIVE,
+        summary="An overview of watercolor painting materials, technique, and history.",
+        created_at=NOW,
+        updated_at=NOW,
+    ),
+    ResourceDTO(
+        resource_id="resource_painting_fundamentals",
+        title="Painting",
+        resource_type=ResourceType.DOCUMENTATION,
+        source_name="Wikipedia",
+        url="https://en.wikipedia.org/wiki/Painting",
+        topic_tags=["painting", "art", "technique"],
+        concept_ids=["painting_fundamentals"],
+        difficulty=DifficultyLevel.BEGINNER,
+        estimated_minutes=18,
+        quality_score=0.76,
+        license_note="Public reference (Wikipedia, CC BY-SA 4.0).",
+        status=ResourceStatus.ACTIVE,
+        summary="A reference on painting as an art form, covering media, technique, and genres.",
+        created_at=NOW,
+        updated_at=NOW,
+    ),
 ]
 
 RESOURCE_ATTACHMENTS = [

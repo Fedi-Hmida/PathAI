@@ -11,6 +11,7 @@ from app.agents.services.evaluation import EvaluationAgentService
 from app.agents.services.knowledge_map import KnowledgeMapAgentService
 from app.agents.services.progress import ProgressAgentService
 from app.agents.services.quiz import QuizAgentService
+from app.agents.services.resource import ResourceAgentService
 from app.fixtures import canonical_demo as demo
 from app.schemas.assessment import AssessmentSessionDTO
 from app.schemas.critic import CriticReviewDTO
@@ -76,19 +77,25 @@ class WorkspaceGenerationService:
     both already tolerate that absence honestly (the same pattern already
     used for `adaptation_event=None`), until a real attempt exists.
 
-    Resources and adaptation are deliberately NOT generated here - resources
-    are still backed by an empty RAG corpus (Rebuild-16) and adaptation
-    depends on real user activity this service doesn't fabricate; they stay
-    honestly absent until their own future phase. This is the per-user
+    Resources are now generated too (Big_Audit Step 12): `ResourceAgentService
+    .attach()` runs the real deterministic matching/ranking algorithm against
+    the curated corpus right after the curriculum is built, and its real
+    attachments (not `[]`) feed the critic and evaluation agents below.
+    Adaptation is still deliberately NOT generated here - it depends on real
+    user activity (quiz scores, stuck topics) this service doesn't fabricate;
+    it stays honestly absent until a real trigger fires through its own route.
+    This is the per-user
     counterpart to the orchestration graph's
-    `load_knowledge_map`/`load_curriculum`/`load_critic_review`/
-    `load_evaluation`/`load_progress` nodes, which only ever run against the
+    `load_knowledge_map`/`load_curriculum`/`load_resources`/
+    `load_critic_review`/`load_evaluation`/`load_progress` nodes, which only
+    ever run against the
     fixed canonical demo goal (`app/orchestration/runner.py`) and still use
     `QuizAgentService.build()`'s original fused quiz+fabricated-attempt
     behavior unchanged."""
 
     knowledge_map_agent: KnowledgeMapAgentService
     curriculum_agent: CurriculumAgentService
+    resource_agent: ResourceAgentService
     critic_agent: CriticAgentService
     evaluation_agent: EvaluationAgentService
     quiz_agent: QuizAgentService
@@ -137,14 +144,16 @@ class WorkspaceGenerationService:
             knowledge_map,
             curriculum_id=curriculum_id,
         )
-        # No resource attachments exist yet (resources are still RAG-corpus-
-        # blocked, Rebuild-16) - the critic agent already handles an empty
-        # attachment list honestly.
+        # Real resource attachments (Big_Audit Step 12): the goal-scoped
+        # attachment IDs (`_attachment_id`) make this idempotent per goal, so
+        # a regeneration overwrites the same records in place rather than
+        # duplicating or colliding with another goal's attachments.
+        resource_attachments = self.resource_agent.attach(curriculum, knowledge_map)
         critic_review = self.critic_agent.review(
             goal,
             knowledge_map,
             curriculum,
-            [],
+            resource_attachments,
             critic_review_id=critic_review_id,
         )
         existing_quizzes = self.quizzes.list_quizzes_by_goal_id(goal.goal_id)
@@ -181,7 +190,7 @@ class WorkspaceGenerationService:
             session,
             knowledge_map,
             curriculum,
-            [],
+            resource_attachments,
             critic_review,
             None,
             None,
