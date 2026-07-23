@@ -14,9 +14,9 @@ from app.orchestration.assessment_agent_gateway import (
     AssessmentAgentService,
     build_assessment_agent_service,
 )
-from app.orchestration.quiz_agent_gateway import (
-    QuizAgentService,
-    build_quiz_agent_service,
+from app.orchestration.quiz_submission_gateway import (
+    QuizSubmissionService,
+    build_quiz_submission_service,
 )
 from app.orchestration.runner import run_straight_line_demo_from_container
 from app.orchestration.workspace_generation_gateway import (
@@ -395,11 +395,14 @@ WorkspaceGenerationServiceDependency = Annotated[
 ]
 
 
-def get_quiz_agent_service(container: ApiContainerDependency) -> QuizAgentService:
-    return build_quiz_agent_service(container.quiz_service)
+def get_quiz_submission_service(container: ApiContainerDependency) -> QuizSubmissionService:
+    return build_quiz_submission_service(container)
 
 
-QuizAgentServiceDependency = Annotated[QuizAgentService, Depends(get_quiz_agent_service)]
+QuizSubmissionServiceDependency = Annotated[
+    QuizSubmissionService,
+    Depends(get_quiz_submission_service),
+]
 
 
 def _bearer_token(request: Request) -> str | None:

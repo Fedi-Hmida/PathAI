@@ -4,7 +4,8 @@ from dataclasses import dataclass
 
 from app.agents.contracts import AdapterAgent
 from app.agents.deterministic.quiz import LOW_SCORE_THRESHOLD
-from app.agents.services.common import create_or_get, validate_agent_output
+from app.agents.mock import MockAdapterAgent
+from app.agents.services.common import create_or_get, create_or_replace, validate_agent_output
 from app.fixtures import canonical_demo as demo
 from app.schemas.adaptation import (
     AdaptationAgentInput,
@@ -30,7 +31,10 @@ class AdaptationAgentService:
         curriculum: CurriculumDTO,
         progress_state: ProgressStateDTO,
         quiz_attempt: QuizAttemptDTO | None,
+        *,
+        adaptation_event_id: str | None = None,
     ) -> AdaptationEventDTO:
+        resolved_id = adaptation_event_id or demo.ADAPTATION_ID
         payload = AdaptationAgentInput(
             goal_text=goal.goal_text,
             curriculum=curriculum,
@@ -38,6 +42,7 @@ class AdaptationAgentService:
             quiz_attempt=quiz_attempt,
             weak_concepts=progress_state.weak_concepts,
             stuck_events=progress_state.stuck_events,
+            adaptation_event_id=resolved_id,
         )
         output = validate_agent_output(
             agent_name=self.agent.agent_name,
@@ -45,7 +50,7 @@ class AdaptationAgentService:
             payload=self.agent.plan_adaptation(payload),
         )
         event = AdaptationEventDTO(
-            adaptation_event_id=demo.ADAPTATION_ID,
+            adaptation_event_id=resolved_id,
             goal_id=goal.goal_id,
             curriculum_id=curriculum.curriculum_id,
             trigger_type=_trigger_type(progress_state, quiz_attempt),
@@ -63,6 +68,17 @@ class AdaptationAgentService:
             created_at=demo.NOW,
             updated_at=demo.NOW,
         )
+        # An explicit ID means a real per-user trigger (first-time or
+        # re-trigger): create it fresh the first time, or overwrite in place
+        # on a repeat call - mirrors ProgressAgentService.build()'s identical
+        # fix in Step 9. No explicit ID means the single fixed-ID demo
+        # pipeline, unchanged first-write-wins behavior.
+        if adaptation_event_id is not None:
+            return create_or_replace(
+                create=self.adaptations.create,
+                save=self.adaptations.save,
+                record=event,
+            )
         return create_or_get(
             create=self.adaptations.create,
             get=self.adaptations.get_by_id,
@@ -99,3 +115,15 @@ def _trigger_details(
     if progress_state.stuck_events:
         details["stuck_event_count"] = str(len(progress_state.stuck_events))
     return details
+
+
+def build_default_adaptation_agent_service(
+    adaptations: AdaptationService,
+) -> AdaptationAgentService:
+    """The adaptation agent has no LLM mode - it is always this
+    deterministic default. Exists so `app/orchestration/*_gateway.py` modules
+    never have to reference `app.agents.mock` directly - forbidden there by
+    `test_agent_scope_security.py`, the same way `bundle.py` and
+    `app/agents/services/quiz.py`'s `build_default_quiz_agent_service` keep
+    that reference confined to `app/agents/services/`."""
+    return AdaptationAgentService(MockAdapterAgent(), adaptations)

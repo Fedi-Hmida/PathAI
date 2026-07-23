@@ -251,9 +251,9 @@ def _unique(values: list[str]) -> list[str]:
 def build_default_quiz_agent_service(quizzes: QuizService) -> QuizAgentService:
     """The quiz agent has no LLM mode (unlike assessment/knowledge-map/critic/
     curriculum) - it is always this deterministic default. Exists so
-    `app/orchestration/quiz_agent_gateway.py` (the sanctioned seam the API
-    layer uses to reach the real quiz-attempt submission path) never has to
-    reference `app.agents.mock` directly - forbidden there by
+    `app/orchestration/quiz_submission_gateway.py` (the sanctioned seam the
+    API layer uses to reach the real quiz-attempt submission path) never has
+    to reference `app.agents.mock` directly - forbidden there by
     `test_agent_scope_security.py`, the same way `bundle.py` already keeps
     that reference confined to `app/agents/services/`."""
     return QuizAgentService(MockQuizAgent(), quizzes)

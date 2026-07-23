@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from app.agents.deterministic.quiz import LOW_SCORE_THRESHOLD
 from app.fixtures import canonical_demo as demo
 from app.schemas.adaptation import AdaptationAgentInput, AdaptationAgentOutput
-from app.schemas.curriculum import CurriculumChangeDTO, CurriculumTopicDTO
+from app.schemas.curriculum import CurriculumChangeDTO, CurriculumDTO, CurriculumTopicDTO
 from app.schemas.enums import CurriculumChangeType, DifficultyLevel
 from app.schemas.progress import ProgressStateDTO
 from app.schemas.quiz import QuizAttemptDTO
@@ -17,12 +17,17 @@ def build_adaptation_output(payload: AdaptationAgentInput) -> AdaptationAgentOut
     weak_concepts = _weak_concepts(payload)
     trigger_reason = _trigger_reason(payload.progress_state, payload.quiz_attempt, weak_concepts)
     changes = _changes_for_concepts(payload, weak_concepts)
+    # Resolved by the caller (AdaptationAgentService.plan()) before this runs;
+    # falls back to the fixed demo ID only for a payload built directly
+    # without going through plan() (e.g. a unit test), same pattern already
+    # used everywhere else in this codebase (`quiz_id or demo.QUIZ_ID`, etc.).
+    adaptation_event_id = payload.adaptation_event_id or demo.ADAPTATION_ID
     return AdaptationAgentOutput(
         trigger_reason=trigger_reason,
         before_summary=_before_summary(payload.progress_state, payload.quiz_attempt),
         after_summary=_after_summary(weak_concepts),
         changes=changes,
-        added_practice_topics=_practice_topics(changes),
+        added_practice_topics=_practice_topics(changes, adaptation_event_id),
         removed_or_deferred_topics=[],
         expected_benefit=_expected_benefit(weak_concepts),
     )
@@ -34,7 +39,12 @@ def _weak_concepts(payload: AdaptationAgentInput) -> list[str]:
     if payload.quiz_attempt:
         values.extend(payload.quiz_attempt.weak_concepts)
     values.extend(payload.progress_state.weak_concepts)
-    return _unique(values) or ["retrieval_evaluation"]
+    # Real fallback source (never fabricated): a stuck event's own concepts,
+    # for the case where the only trigger signal is a stuck topic with no
+    # weak-concept list populated anywhere else.
+    for stuck_event in payload.progress_state.stuck_events:
+        values.extend(stuck_event.concept_ids)
+    return _unique(values)
 
 
 def _trigger_reason(
@@ -72,17 +82,41 @@ def _changes_for_concepts(
                 topic_title=_topic_title_for_concept(concept),
             ),
         )
-    return changes or [demo.ADAPTATION_CHANGE.model_copy(deep=True)]
+    return changes or [_fallback_change_for_current_topic(payload)]
 
 
-def _practice_topics(changes: list[CurriculumChangeDTO]) -> list[CurriculumTopicDTO]:
+def _fallback_change_for_current_topic(payload: AdaptationAgentInput) -> CurriculumChangeDTO:
+    """No weak concept was identified from any real source (an edge case,
+    since `plan()` only ever runs under a real trigger condition) - build a
+    generic "review the current topic" change from the learner's own real
+    progress/curriculum, never a hardcoded fixture (ADR-0003)."""
+    topic_id = payload.progress_state.current_topic_id
+    topic = _topic_by_id(payload.curriculum, topic_id) if topic_id else None
+    return CurriculumChangeDTO(
+        change_type=CurriculumChangeType.ADD_REVIEW_QUIZ,
+        target_week=_week_for_topic(payload, topic_id),
+        affected_topic_ids=[topic_id] if topic_id else [],
+        affected_concept_ids=list(topic.concept_ids) if topic else [],
+        reason=(
+            "No specific weak concept was identified; review the current "
+            "topic before continuing."
+        ),
+        topic_title=topic.title if topic else None,
+    )
+
+
+def _practice_topics(
+    changes: list[CurriculumChangeDTO],
+    adaptation_event_id: str,
+) -> list[CurriculumTopicDTO]:
     topics: list[CurriculumTopicDTO] = []
     for index, change in enumerate(changes, start=1):
-        concept = (
-            change.affected_concept_ids[0]
-            if change.affected_concept_ids
-            else "rag_fundamentals"
-        )
+        if not change.affected_concept_ids:
+            # No real concept to build a focused practice topic around -
+            # skip rather than fabricate one (ADR-0003: this used to
+            # unconditionally fall back to "rag_fundamentals").
+            continue
+        concept = change.affected_concept_ids[0]
         topics.append(
             CurriculumTopicDTO(
                 topic_id=f"topic_adapt_{concept}"[:127],
@@ -96,7 +130,7 @@ def _practice_topics(changes: list[CurriculumChangeDTO]) -> list[CurriculumTopic
                 ],
                 sequence_order=100 + index,
                 practice_task=_practice_task_for_concept(concept),
-                adaptation_origin=demo.ADAPTATION_ID,
+                adaptation_origin=adaptation_event_id,
             ),
         )
     return topics[:10]
@@ -172,6 +206,14 @@ def _topic_for_concept(payload: AdaptationAgentInput, concept: str) -> str | Non
             if concept in topic.concept_ids:
                 return topic.topic_id
     return payload.progress_state.current_topic_id
+
+
+def _topic_by_id(curriculum: CurriculumDTO, topic_id: str) -> CurriculumTopicDTO | None:
+    for week in curriculum.weeks:
+        for topic in week.topics:
+            if topic.topic_id == topic_id:
+                return topic
+    return None
 
 
 def _week_for_topic(payload: AdaptationAgentInput, topic_id: str | None) -> int | None:

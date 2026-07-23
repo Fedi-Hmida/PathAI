@@ -15,6 +15,7 @@ from app.agents.services.evaluation import EvaluationAgentService
 from app.agents.services.knowledge_map import KnowledgeMapAgentService
 from app.agents.services.progress import ProgressAgentService
 from app.agents.services.quiz import QuizAgentService
+from app.agents.services.quiz_submission import QuizSubmissionResult, QuizSubmissionService
 from app.agents.services.resource import ResourceAgentService
 from app.agents.services.workspace_generation import (
     AssessmentNotCompleteError,
@@ -37,6 +38,8 @@ __all__ = [
     "KnowledgeMapAgentMode",
     "ProgressAgentService",
     "QuizAgentService",
+    "QuizSubmissionResult",
+    "QuizSubmissionService",
     "ResourceAgentService",
     "WorkspaceGenerationService",
     "build_mock_agent_service_bundle",

@@ -363,6 +363,67 @@ def test_submit_quiz_attempt_route_rejects_an_empty_answer_list(
     assert response.status_code == 422
 
 
+def test_a_low_scoring_submission_creates_a_real_fetchable_adaptation_event(
+    _auth_enabled_app: None,
+) -> None:
+    """Big_Audit Step 11: a real, deliberately wrong submission must trigger
+    a real, persisted Adaptation event, reachable via GET /adaptations/{id}
+    and reflected in the dashboard's own artifact_ids - not a fabricated
+    always-on side effect of every submission."""
+    client = TestClient(create_app())
+    token = _register(client, "quiz-adaptation-triggered@example.com")
+    run_id = _create_workspace_and_get_run_id(client, token)
+    _complete_assessment(client, token)
+    quiz_id = client.post(
+        "/api/v1/me/workspace/generate", headers=_auth_header(token)
+    ).json()["quiz_id"]
+
+    review = _submit_real_attempt_with_wrong_answers(client, token, quiz_id)
+    assert review["attempt"]["total_score"] < 0.65
+
+    dashboard = client.get(
+        f"/api/v1/dashboard/{run_id}",
+        headers=_auth_header(token),
+    ).json()
+    adaptation_event_id = dashboard["navigation_summary"]["artifact_ids"].get(
+        "adaptation_event_id",
+    )
+    assert adaptation_event_id is not None
+
+    fetched = client.get(
+        f"/api/v1/adaptations/{adaptation_event_id}",
+        headers=_auth_header(token),
+    )
+    assert fetched.status_code == 200
+    body = fetched.json()
+    assert body["status"] == "proposed"
+    assert body["trigger_type"] == "quiz_score_below_threshold"
+    assert body["quiz_attempt_id"] == review["attempt"]["quiz_attempt_id"]
+    assert body["new_curriculum_id"] is None
+
+
+def test_a_healthy_submission_creates_no_adaptation_event_and_dashboard_stays_honest(
+    _auth_enabled_app: None,
+) -> None:
+    client = TestClient(create_app())
+    token = _register(client, "quiz-adaptation-not-triggered@example.com")
+    run_id = _create_workspace_and_get_run_id(client, token)
+    _complete_assessment(client, token)
+    quiz_id = client.post(
+        "/api/v1/me/workspace/generate", headers=_auth_header(token)
+    ).json()["quiz_id"]
+
+    review = _submit_real_attempt(client, token, quiz_id)
+    assert review["attempt"]["total_score"] >= 0.65
+
+    dashboard = client.get(
+        f"/api/v1/dashboard/{run_id}",
+        headers=_auth_header(token),
+    ).json()
+    assert "adaptation_event_id" not in dashboard["navigation_summary"]["artifact_ids"]
+    assert dashboard["adaptation_summary"]["recent_events"] == []
+
+
 def _client() -> TestClient:
     reset_api_container_for_tests()
     return TestClient(create_app())
@@ -387,12 +448,17 @@ def _auth_header(token: str) -> dict[str, str]:
 
 
 def _create_workspace(client: TestClient, token: str) -> None:
+    _create_workspace_and_get_run_id(client, token)
+
+
+def _create_workspace_and_get_run_id(client: TestClient, token: str) -> str:
     response = client.post(
         "/api/v1/me/workspace",
         headers=_auth_header(token),
         json={"goal_text": "Learn classical guitar for a wedding performance"},
     )
     assert response.status_code == 201
+    return response.json()["run_id"]  # type: ignore[no-any-return]
 
 
 def _complete_assessment(client: TestClient, token: str) -> None:
@@ -411,6 +477,24 @@ def _complete_assessment(client: TestClient, token: str) -> None:
 
 
 def _submit_real_attempt(client: TestClient, token: str, quiz_id: str) -> dict:
+    return _submit_real_attempt_selecting(client, token, quiz_id, option_index=0)
+
+
+def _submit_real_attempt_with_wrong_answers(client: TestClient, token: str, quiz_id: str) -> dict:
+    # Deliberately picks a distractor option (index 1), not the correct
+    # answer (index 0 for this deterministic quiz's questions), to force a
+    # real low score and exercise the real Adaptation trigger (Big_Audit
+    # Step 11).
+    return _submit_real_attempt_selecting(client, token, quiz_id, option_index=1)
+
+
+def _submit_real_attempt_selecting(
+    client: TestClient,
+    token: str,
+    quiz_id: str,
+    *,
+    option_index: int,
+) -> dict:
     learner_quiz = client.get(
         f"/api/v1/quizzes/{quiz_id}",
         headers=_auth_header(token),
@@ -418,7 +502,9 @@ def _submit_real_attempt(client: TestClient, token: str, quiz_id: str) -> dict:
     answers = [
         {
             "question_id": question["question_id"],
-            "selected_options": question["options"][:1],
+            "selected_options": [
+                question["options"][option_index % len(question["options"])],
+            ],
         }
         for question in learner_quiz["questions"]
     ]

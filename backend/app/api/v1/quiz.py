@@ -7,8 +7,8 @@ from fastapi import APIRouter, Body
 from app.api.v1.dependencies import (
     AuthorizationDependency,
     CurrentUserOrNoneDependency,
-    QuizAgentServiceDependency,
     QuizServiceDependency,
+    QuizSubmissionServiceDependency,
 )
 from app.schemas.enums import QuizAttemptStatus
 from app.schemas.ids import AttemptId, QuizId
@@ -41,7 +41,7 @@ def submit_quiz_attempt(
     quiz_id: QuizId,
     answers: Annotated[list[QuizAnswerSubmission], Body(min_length=1, max_length=50)],
     service: QuizServiceDependency,
-    quiz_agents: QuizAgentServiceDependency,
+    submission: QuizSubmissionServiceDependency,
     current_user: CurrentUserOrNoneDependency,
     authz: AuthorizationDependency,
 ) -> QuizAttemptReviewDTO:
@@ -49,11 +49,15 @@ def submit_quiz_attempt(
     deterministic scorer and persisted as a genuinely new attempt (never an
     overwrite of a prior one - a goal can accumulate multiple real attempts
     as a learner retakes the quiz; see ``dashboard.py``'s
-    latest-attempt-by-``submitted_at`` selection)."""
+    latest-attempt-by-``submitted_at`` selection). The same submission also
+    recomputes real Progress and - only when the real score/stuck-topic
+    signal actually crosses a threshold - triggers a real, persisted
+    Adaptation event (Big_Audit Step 11); neither is part of this route's own
+    response, they're each independently reachable via their own routes."""
     quiz = service.get_quiz_by_id(quiz_id)
     authz.assert_goal_access(current_user, quiz.goal_id)
-    attempt = quiz_agents.submit_attempt(quiz, answers)
-    return QuizAttemptReviewDTO(attempt=attempt, questions=quiz.questions)
+    result = submission.submit(quiz, answers)
+    return QuizAttemptReviewDTO(attempt=result.attempt, questions=quiz.questions)
 
 
 @router.get("/{quiz_id}/attempts/{attempt_id}", response_model=QuizAttemptReviewDTO)

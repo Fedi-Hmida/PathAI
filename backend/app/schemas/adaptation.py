@@ -47,6 +47,13 @@ class AdaptationAgentInput(BaseSchema):
     quiz_attempt: QuizAttemptDTO | None = None
     weak_concepts: list[ConceptId] = Field(default_factory=list, max_length=20)
     stuck_events: list[StuckEventDTO] = Field(default_factory=list, max_length=20)
+    # The real (or demo-fixed) adaptation event ID this plan is being built
+    # for, resolved by the caller (AdaptationAgentService.plan()) before the
+    # agent runs, so added_practice_topics' adaptation_origin stamp can carry
+    # the correct real ID instead of an unconditional demo one (Big_Audit
+    # Step 11 / ADR-0003). None only when a caller builds this payload
+    # directly without going through plan() (e.g. a unit test).
+    adaptation_event_id: AdaptationId | None = None
 
 
 class AdaptationAgentOutput(BaseSchema):
